@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="nexo_b2b_catalog_action" model="ir.actions.client">
+        <field name="name">Catálogo NexoB2B</field>
+        <field name="tag">nexo_b2b.catalog</field>
+    </record>
+</odoo>

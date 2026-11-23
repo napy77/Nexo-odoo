@@ -1,0 +1,16 @@
+.o_nexo_b2b_catalog {
+    .o_nexo_b2b_login {
+        max-width: 960px;
+    }
+
+    .o_nexo_b2b_image {
+        width: 96px;
+        height: 96px;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    }
+}

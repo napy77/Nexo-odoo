@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_nexo_b2b" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.nexo_b2b</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="90"/>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="NexoB2B" string="NexoB2B" name="nexo_b2b" groups="base.group_system">
+                    <block title="Conexión" name="nexo_b2b_connection">
+                        <setting id="nexo_b2b_server" string="Servidor" help="Dirección de la API de NexoB2B y clave publicable de Medusa">
+                            <div class="content-group">
+                                <div class="row mt8">
+                                    <label for="nexo_b2b_url" class="col-lg-4 o_light_label"/>
+                                    <field name="nexo_b2b_url" placeholder="https://…"/>
+                                </div>
+                                <div class="row">
+                                    <label for="nexo_b2b_publishable_key" class="col-lg-4 o_light_label"/>
+                                    <field name="nexo_b2b_publishable_key" password="True"/>
+                                </div>
+                            </div>
+                        </setting>
+                        <setting id="nexo_b2b_session" string="Sesión del comercio"
+                                 help="Se inicia con el email y la contraseña de un usuario del comercio con permiso «comprar». La contraseña no se guarda.">
+                            <field name="nexo_b2b_status" readonly="1"/>
+                            <div class="mt8">
+                                <button name="action_nexo_b2b_connect" type="object" string="Iniciar sesión" class="btn-primary" icon="fa-sign-in"/>
+                                <button name="action_nexo_b2b_test" type="object" string="Probar conexión" class="btn-secondary ms-2" icon="fa-plug"/>
+                                <button name="action_nexo_b2b_logout" type="object" string="Cerrar sesión" class="btn-link ms-2"/>
+                            </div>
+                        </setting>
+                    </block>
+                    <block title="Mapeos" name="nexo_b2b_maps">
+                        <setting id="nexo_b2b_tax_map" string="Alícuotas de IVA" help="Qué impuesto de venta y de compra de Odoo corresponde a cada alícuota de NexoB2B">
+                            <button name="action_nexo_b2b_tax_map" type="object" string="Revisar alícuotas" class="btn-link" icon="oi-arrow-right"/>
+                        </setting>
+                        <setting id="nexo_b2b_category_map" string="Categorías" help="Dónde se ubica en Odoo cada categoría de NexoB2B ya usada">
+                            <button name="action_nexo_b2b_category_map" type="object" string="Revisar categorías" class="btn-link" icon="oi-arrow-right"/>
+                        </setting>
+                    </block>
+                    <block title="Soporte" name="nexo_b2b_support">
+                        <setting id="nexo_b2b_diagnostic" string="Diagnóstico" help="Registro de llamadas y paquete de diagnóstico, sin claves ni tokens">
+                            <button name="action_nexo_log" type="object" string="Abrir registro" class="btn-link" icon="oi-arrow-right"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>

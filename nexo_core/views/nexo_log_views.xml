@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="nexo_log_view_list" model="ir.ui.view">
+        <field name="name">nexo.log.list</field>
+        <field name="model">nexo.log</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0">
+                <header>
+                    <button name="action_download_diagnostic" type="object" string="Descargar diagnóstico" display="always" class="btn-primary"/>
+                </header>
+                <field name="create_date" string="Fecha"/>
+                <field name="service"/>
+                <field name="method"/>
+                <field name="path"/>
+                <field name="status"/>
+                <field name="error_kind" decoration-danger="error_kind"/>
+                <field name="duration_ms"/>
+                <field name="request_id"/>
+                <field name="user_id"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="nexo_log_view_search" model="ir.ui.view">
+        <field name="name">nexo.log.search</field>
+        <field name="model">nexo.log</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="request_id"/>
+                <field name="path"/>
+                <field name="service"/>
+                <filter name="errors" string="Con error" domain="[('error_kind', '!=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="nexo_log_action" model="ir.actions.act_window">
+        <field name="name">Registro de llamadas a Nexo</field>
+        <field name="res_model">nexo.log</field>
+        <field name="view_mode">list</field>
+    </record>
+</odoo>

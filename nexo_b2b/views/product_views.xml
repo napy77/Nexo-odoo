@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="product_template_form_view_nexo_b2b" model="ir.ui.view">
+        <field name="name">product.template.form.nexo_b2b</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <field name="categ_id" position="after">
+                <field name="nexo_marca"/>
+                <field name="nexo_b2b_id" readonly="1" invisible="not nexo_b2b_id"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="product_supplierinfo_tree_view_nexo_b2b" model="ir.ui.view">
+        <field name="name">product.supplierinfo.list.nexo_b2b</field>
+        <field name="model">product.supplierinfo</field>
+        <field name="inherit_id" ref="product.product_supplierinfo_tree_view"/>
+        <field name="arch" type="xml">
+            <field name="partner_id" position="after">
+                <field name="nexo_presentacion_nombre" optional="show" readonly="1"/>
+                <field name="nexo_factor" optional="hide" readonly="1"/>
+                <field name="nexo_ean_propio" optional="hide" readonly="1"/>
+            </field>
+        </field>
+    </record>
+</odoo>

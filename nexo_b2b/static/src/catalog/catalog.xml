@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="nexo_b2b.Catalog">
+        <div class="o_action o_nexo_b2b_catalog h-100 overflow-auto p-3">
+            <div class="d-flex align-items-center mb-3">
+                <h2 class="mb-0 me-auto">Catálogo NexoB2B</h2>
+                <span t-if="this.state.status and this.state.status.connected" class="text-muted small">
+                    <t t-out="this.state.status.message"/>
+                </span>
+            </div>
+
+            <!-- Inicio de sesión -->
+            <form t-if="this.state.showLogin" class="o_nexo_b2b_login card p-3 mb-3" t-on-submit="this.onLogin">
+                <p class="mb-2">
+                    Iniciá sesión con un usuario del comercio que tenga el permiso «comprar».
+                    La contraseña se usa una sola vez y no se guarda.
+                </p>
+                <t t-if="this.state.status and !this.state.status.configured">
+                    <div class="alert alert-warning mb-2">Primero configurá la URL y la clave publicable en Ajustes → NexoB2B.</div>
+                </t>
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <input type="email" class="form-control" placeholder="Email" autocomplete="username"
+                               required="required" t-model.proxy="this.state.login.email"/>
+                    </div>
+                    <div class="col-md-4">
+                        <input type="password" class="form-control" placeholder="Contraseña" autocomplete="current-password"
+                               required="required" t-model.proxy="this.state.login.password"/>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary" t-att-disabled="this.state.login.busy">
+                            <t t-if="this.state.login.busy">Conectando…</t>
+                            <t t-else="">Iniciar sesión</t>
+                        </button>
+                    </div>
+                </div>
+                <div t-if="this.state.login.error" class="alert alert-danger mt-2 mb-0" t-out="this.state.login.error"/>
+            </form>
+
+            <t t-else="">
+                <!-- Búsqueda -->
+                <div class="d-flex gap-3 align-items-center mb-3">
+                    <input type="search" class="form-control o_nexo_b2b_query" autofocus="autofocus"
+                           placeholder="Buscar por nombre, marca o EAN…"
+                           t-model.proxy="this.state.query" t-on-input="this.onQueryInput"/>
+                    <label class="text-nowrap mb-0">
+                        <input type="checkbox" class="form-check-input me-1"
+                               t-att-checked="!this.state.conStock" t-on-change="this.onToggleStock"/>
+                        Mostrar sin stock
+                    </label>
+                </div>
+
+                <div t-if="this.state.error" class="alert alert-danger" t-out="this.state.error"/>
+
+                <!-- Faltan datos para agregar -->
+                <div t-if="this.state.pending" class="card border-primary p-3 mb-3 o_nexo_b2b_pending">
+                    <h5>Antes de agregar «<t t-out="this.state.pending.producto.nombre"/>»</h5>
+                    <div t-if="this.state.pending.tax" class="mb-3">
+                        <p class="mb-1">
+                            La alícuota <b><t t-out="this.state.pending.tax.alicuota"/>%</b> de NexoB2B no está confirmada.
+                            Elegí los impuestos de Odoo (queda guardado para los próximos productos).
+                        </p>
+                        <div class="row g-2">
+                            <div class="col-md-5">
+                                <label class="form-label small mb-0">Impuesto de venta</label>
+                                <select class="form-select" t-on-change="(ev) => this.setPending('saleTaxId', ev)">
+                                    <option value="">— Sin impuesto —</option>
+                                    <t t-foreach="this.state.pending.tax.sale_taxes" t-as="tax" t-key="tax.id">
+                                        <option t-att-value="tax.id" t-att-selected="String(tax.id) === this.state.pending.saleTaxId" t-out="tax.name"/>
+                                    </t>
+                                </select>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label small mb-0">Impuesto de compra</label>
+                                <select class="form-select" t-on-change="(ev) => this.setPending('purchaseTaxId', ev)">
+                                    <option value="">— Sin impuesto —</option>
+                                    <t t-foreach="this.state.pending.tax.purchase_taxes" t-as="tax" t-key="tax.id">
+                                        <option t-att-value="tax.id" t-att-selected="String(tax.id) === this.state.pending.purchaseTaxId" t-out="tax.name"/>
+                                    </t>
+                                </select>
+                            </div>
+                        </div>
+                        <label t-if="!this.state.pending.saleTaxId and !this.state.pending.purchaseTaxId" class="mt-2">
+                            <input type="checkbox" class="form-check-input me-1" t-on-change="(ev) => this.setPending('withoutTax', ev)"/>
+                            Confirmo que esta alícuota va sin impuestos
+                        </label>
+                    </div>
+                    <div t-if="this.state.pending.category" class="mb-3">
+                        <p class="mb-1">¿Dónde ubico la categoría <b t-out="this.state.pending.category.ruta"/>?</p>
+                        <label class="d-block">
+                            <input type="radio" name="nexo_categ_mode" value="create" class="form-check-input me-1"
+                                   t-att-checked="this.state.pending.categoryMode === 'create'"
+                                   t-on-change="(ev) => this.setPending('categoryMode', ev)"/>
+                            Crearla en el árbol <i t-out="this.state.pending.category.ruta"/>
+                        </label>
+                        <label class="d-block">
+                            <input type="radio" name="nexo_categ_mode" value="existing" class="form-check-input me-1"
+                                   t-att-checked="this.state.pending.categoryMode === 'existing'"
+                                   t-on-change="(ev) => this.setPending('categoryMode', ev)"/>
+                            Usar una categoría existente
+                        </label>
+                        <select t-if="this.state.pending.categoryMode === 'existing'" class="form-select mt-1"
+                                t-on-change="(ev) => this.setPending('categId', ev)">
+                            <option value="">— Elegí una categoría —</option>
+                            <t t-foreach="this.state.pending.category.categories" t-as="categ" t-key="categ.id">
+                                <option t-att-value="categ.id" t-out="categ.name"/>
+                            </t>
+                        </select>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary me-2" t-on-click="() => this.confirmPending()">Agregar</button>
+                        <button class="btn btn-secondary" t-on-click="() => this.cancelPending()">Cancelar</button>
+                    </div>
+                </div>
+
+                <div t-if="this.state.loading" class="text-muted mb-2">Buscando…</div>
+
+                <t t-if="this.state.result">
+                    <div class="text-muted small mb-2">
+                        <t t-out="this.state.result.total"/> producto(s)
+                    </div>
+                    <div t-if="!this.state.result.productos.length and !this.state.loading" class="text-muted">
+                        No hay resultados<t t-if="this.state.conStock"> con stock</t>.
+                    </div>
+
+                    <div t-foreach="this.state.result.productos" t-as="producto" t-key="producto.id"
+                         class="card mb-2 o_nexo_b2b_product">
+                        <div class="card-body d-flex gap-3">
+                            <div class="o_nexo_b2b_image flex-shrink-0">
+                                <img t-if="producto.imagen_url" t-att-src="producto.imagen_url" loading="lazy" alt=""/>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-start">
+                                    <div class="me-auto">
+                                        <h5 class="mb-0" t-out="producto.nombre"/>
+                                        <div class="text-muted small">
+                                            <t t-if="producto.marca"><t t-out="producto.marca"/> · </t>
+                                            EAN <t t-out="producto.ean or '—'"/>
+                                            <t t-if="producto.alicuota_iva !== null"> · IVA <t t-out="producto.alicuota_iva"/>%</t>
+                                            <t t-if="producto.taxonomia"> · <t t-out="producto.taxonomia"/></t>
+                                        </div>
+                                    </div>
+                                    <button t-if="producto.odoo_product_id" class="btn btn-link btn-sm"
+                                            t-on-click="() => this.openProduct(producto)">Ver en Odoo</button>
+                                </div>
+                                <table class="table table-sm mt-2 mb-0">
+                                    <tbody>
+                                        <t t-foreach="producto.mayoristas" t-as="mayorista" t-key="mayorista.id">
+                                            <tr>
+                                                <td class="fw-bold" t-out="mayorista.nombre"/>
+                                                <td>
+                                                    <div t-foreach="mayorista.presentaciones" t-as="pr" t-key="pr.id" class="small">
+                                                        <t t-out="pr.nombre"/>
+                                                        <t t-if="pr.factor and pr.factor !== 1"> (<t t-out="pr.factor"/> u.)</t>:
+                                                        <b t-out="this.formatPrice(pr.precio_mostrar)"/>
+                                                        <span class="text-muted"> <t t-out="this.priceLabel(mayorista)"/></span>
+                                                        · stock <t t-out="pr.stock === null or pr.stock === undefined ? '—' : pr.stock"/>
+                                                    </div>
+                                                </td>
+                                                <td class="text-end text-nowrap">
+                                                    <button class="btn btn-sm"
+                                                            t-att-class="mayorista.agregado ? 'btn-outline-secondary' : 'btn-primary'"
+                                                            t-att-disabled="this.isBusy(producto, mayorista)"
+                                                            t-on-click="() => this.add(producto, mayorista)">
+                                                        <t t-if="this.isBusy(producto, mayorista)">Agregando…</t>
+                                                        <t t-elif="mayorista.agregado">Actualizar</t>
+                                                        <t t-else="">Agregar</t>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                </table>
+                                <div t-if="!producto.mayoristas.length" class="text-muted small mt-2">Ningún mayorista lo ofrece.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div t-if="this.state.result.totalPages > 1" class="d-flex gap-2 align-items-center mt-3">
+                        <button class="btn btn-secondary btn-sm" t-att-disabled="this.state.page &lt;= 1"
+                                t-on-click="() => this.goToPage(this.state.page - 1)">Anterior</button>
+                        <span>Página <t t-out="this.state.page"/> de <t t-out="this.state.result.totalPages"/></span>
+                        <button class="btn btn-secondary btn-sm" t-att-disabled="this.state.page >= this.state.result.totalPages"
+                                t-on-click="() => this.goToPage(this.state.page + 1)">Siguiente</button>
+                    </div>
+                </t>
+            </t>
+        </div>
+    </t>
+
+</templates>

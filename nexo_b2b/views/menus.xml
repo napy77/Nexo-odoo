@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_nexo_b2b_catalog"
+              name="Catálogo NexoB2B"
+              parent="purchase.menu_procurement_management"
+              action="nexo_b2b_catalog_action"
+              groups="purchase.group_purchase_user"
+              sequence="50"/>
+
+    <menuitem id="menu_nexo_b2b_config"
+              name="NexoB2B"
+              parent="purchase.menu_purchase_config"
+              groups="purchase.group_purchase_manager"
+              sequence="90"/>
+    <menuitem id="menu_nexo_b2b_tax_map" name="Alícuotas" parent="menu_nexo_b2b_config"
+              action="nexo_b2b_tax_map_action" sequence="10"/>
+    <menuitem id="menu_nexo_b2b_category_map" name="Categorías" parent="menu_nexo_b2b_config"
+              action="nexo_b2b_category_map_action" sequence="20"/>
+    <menuitem id="menu_nexo_log" name="Registro y diagnóstico" parent="menu_nexo_b2b_config"
+              action="nexo_core.nexo_log_action" groups="base.group_system" sequence="30"/>
+</odoo>
