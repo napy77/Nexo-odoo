@@ -104,7 +104,22 @@ Fuente: `nexo-pos/backend/src/modules/erp.ts` y la doc pública `https://nexopos
 - **No le avisa a NexoB2B** (el aviso de stock compartido sale solo de las ventas del mostrador de NexoPOS).
 
 ### `GET /ventas?desde=` — NO SE USA TODAVÍA
-- Trae las ventas del mostrador y los pedidos de tienda **entregados**, sin decir cuál es cuál.
+- Trae las ventas del mostrador y los pedidos de tienda entregados. Desde el commit `cd15a2c` de NexoPOS cada venta trae `pedido_code` (`null` en el mostrador), y el reembolso de un pedido también.
+- El `hasta` va con milisegundos: la última venta de una página vuelve a venir al principio de la siguiente. Hay que guardarlas por `id`.
 
-### Pedidos de tienda — NO EXISTE en la API para ERP
-- Pedido en `docs/PARA-NEXOPOS_de-NEXO-ODOO_pedidos-de-tienda-para-erp.md`.
+### Pedidos de tienda — IMPLEMENTADO en `nexo_tienda`, sin probar contra producción
+Hecho por NexoPOS en el commit `cd15a2c`, todavía sin desplegar en nexopos.app (23/11/2026): hasta el deploy, `/pedidos` contesta 404. Respuesta en `nexo-pos/docs/RESPUESTA-PEDIDOS-ERP-A-NEXO-ODOO.md`. Leído también en `backend/src/modules/erp.ts`.
+- **Autenticación:** la misma clave `npos_…`, sin login ni vencimiento. No hay permisos por clave.
+- **`GET /pedidos?actualizados_desde=<ISO>`** → `{pedidos[], hasta, hay_mas}`, de a 200, ordenados por `updated_at`. Sin la fecha, los que están en curso.
+  - `hasta` va con microsegundos y queda **dos minutos atrás** a propósito: un pedido puede volver repetido. Odoo lo guarda tal cual y actualiza por `code`.
+  - Cada pedido: `code`, `status`, `creado`, `actualizado`, `retiro {tipo, franja, direccion}`, `pago {medio, estado, id}`, `contacto {nombre, telefono}`, `cuenta_id`, `notas`, `listo_para`, `motivo_cancelacion`, `cancelado_por`, `revision {motivo}` (solo en `recibido`), `venta {id, ticket}`, `lineas[]` y los importes en centavos.
+  - Línea: `producto_id` (texto, el `id` de `GET /productos`), `ean`, `sku`, `nombre`, `unidad`, `cantidad` (número) y `precio_centavos` (con IVA).
+  - `pago.medio`: `efectivo_entrega`, `online` o `cuenta_corriente`. `pago.estado`: `no_aplica`, `pendiente`, `pagado`, `rechazado` o `reembolsado`.
+- **`GET /pedidos/:code`**: uno solo, con la misma forma.
+- **`POST /pedidos/:code/{aceptar,listo,en-camino,entregado,cancelar}`**: corre la misma función que la pantalla de NexoPOS y contesta el pedido completo.
+  - `aceptar` pide `listo_para` (sin él, 400 `falta_listo_para`). `cancelar` pide `motivo` (hasta 400 letras).
+  - Repetir un paso ya dado: 200 sin hacer nada. Un `cancelar` repetido conserva el primer motivo.
+  - Un paso que no corresponde: 409 `{error, code: "paso_invalido", status}`. `en-camino` de un retiro: 409 `es_retiro`. Un `code` de otro comercio: 404 `pedido_inexistente`.
+  - Pasos: `recibido → aceptado → listo → (en_camino, solo reparto) → entregado`, y `cancelado` desde cualquiera antes de entregado. No se puede saltear `listo`.
+  - El stock se descuenta al **aceptar** (movimiento `PEDIDO-<code>`) y vuelve al cancelar.
+- **Webhook al ERP:** PROPUESTO por NexoPOS, no hecho. Odoo consulta cada minuto.

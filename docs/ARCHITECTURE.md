@@ -23,6 +23,13 @@ nexo_pos    (depende de nexo_core, stock, account)
   stock.move._action_done  encola lo que entra o sale del depósito elegido
   campos             product.product.nexo_pos_id / nexo_pos_price_dirty
   crons              cada minuto: precios y stock; cada día: comparar
+
+nexo_tienda (depende de nexo_pos, sale_stock, pos_sale_stock)
+  nexo.tienda.order  espejo del pedido de NexoTienda en NexoPOS, con sus pasos (DEC-021)
+  sale.order         un pedido de venta por pedido de tienda, equipo «NexoTienda», que cobra la caja
+  stock.move         lo que sale por un pedido de tienda no se manda a NexoPOS
+  pos.order / stock.picking  cobrado o entregado en Odoo → «entregado» en NexoPOS
+  cron               cada minuto: avisar entregas y traer pedidos
 ```
 
 ## Flujo

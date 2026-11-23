@@ -1,6 +1,8 @@
 # Propuesta: caja en Odoo, pedidos de NexoTienda y stock compartido
 
-Estado: pasos 1 y 2 **IMPLEMENTADOS** en `nexo_pos`, sin probar contra la API real (23/11/2026). El paso 3 sigue **PROPUESTO**.
+Estado (23/11/2026):
+- Pasos 1 y 2 **IMPLEMENTADOS** en `nexo_pos`. La lectura se probó contra la API real; la escritura, no.
+- Paso 3 **IMPLEMENTADO** en `nexo_tienda`, con tests contra NexoPOS simulado. NexoPOS ya lo hizo de su lado (commit `cd15a2c`), pero todavía no está desplegado.
 
 ## La decisión de German
 Un comercio que usa Odoo **cobra en el Punto de Venta de Odoo**, y ahí también atiende los pedidos de NexoTienda (DEC-016).
@@ -29,9 +31,9 @@ NexoPOS sigue siendo la base de NexoTienda: catálogo, precio y stock que ve el 
 | Alta de productos en la tienda | Odoo → NexoPOS | `POST /productos` con EAN, precio y stock | Se puede hacer hoy |
 | Precio al público | Odoo → NexoPOS | `PUT /precios` cuando cambia `list_price` | Se puede hacer hoy |
 | Stock | Odoo → NexoPOS | `PUT /stock` en modo `ajuste`, con cada movimiento de Odoo (venta en caja, recepción de compra, ajuste de inventario) | Se puede hacer hoy |
-| Pedido de tienda nuevo | NexoPOS → Odoo | Pedido de venta en Odoo (equipo «Tienda online»), que la caja abre y cobra con `pos_sale` | **Falta en NexoPOS** |
-| Aceptar, listo, en camino, entregado, cancelar | Odoo → NexoPOS | El cajero lo hace en Odoo y NexoPOS le avisa a NexoTienda, como hoy | **Falta en NexoPOS** |
-| Pago con Mercado Pago | NexoPOS → Odoo | `paymentStatus` del pedido; en Odoo entra ya pagado | **Falta en NexoPOS** |
+| Pedido de tienda nuevo | NexoPOS → Odoo | Pedido de venta en Odoo (equipo «NexoTienda»), que la caja abre y cobra con `pos_sale` | Implementado; NexoPOS sin desplegar |
+| Aceptar, listo, en camino, entregado, cancelar | Odoo → NexoPOS | El cajero lo hace en Odoo y NexoPOS le avisa a NexoTienda, como hoy | Implementado; NexoPOS sin desplegar |
+| Pago con Mercado Pago | NexoPOS → Odoo | `pago.estado` del pedido. Odoo avisa «no lo cobres en la caja» | **PENDIENTE DE VALIDAR:** cómo entra el pago a la contabilidad |
 
 ### Por qué `ajuste` y no `absoluto`
 - Con `absoluto`, Odoo pisaría las unidades que NexoPOS descontó al aceptar un pedido de tienda y que Odoo todavía no registró: reaparecerían y se venderían dos veces.
@@ -63,4 +65,4 @@ NexoPOS sigue siendo la base de NexoTienda: catálogo, precio y stock que ve el 
 ## Orden propuesto
 1. **Conexión con NexoPOS y productos:** clave en Ajustes, leer el catálogo de NexoPOS y vincular por EAN.
 2. **Precios y stock** de Odoo → NexoPOS, en modo `ajuste`, más la comparación diaria. Funciona con la API de hoy.
-3. **Pedidos de tienda en la caja de Odoo**, cuando NexoPOS tenga lo pedido.
+3. **Pedidos de tienda en la caja de Odoo** (`nexo_tienda`, DEC-021).
