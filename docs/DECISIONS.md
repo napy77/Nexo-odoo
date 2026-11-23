@@ -59,3 +59,51 @@ Origen: brief de nexo-ecosystem (30/10/2026) y respuesta con las decisiones de G
 
 ## DEC-010 — Tests con respuestas simuladas; la API real solo a mano y de lectura
 - Los tests de Odoo simulan las respuestas HTTP de NexoB2B y cubren el mapeo, la idempotencia y los errores. Contra la API real solo se prueba a mano y en modo lectura.
+
+## DEC-011 — Pedidos: el pedido de compra de Odoo se envía a NexoB2B, y el estado se consulta cada 5 minutos
+- Se compra con el pedido de compra nativo de Odoo: proveedor = mayorista, y cada línea = una presentación. «+ Al pedido» del catálogo suma al borrador de ese mayorista, y «Enviar a NexoB2B» hace `POST /store/ordenes`.
+- No se manda precio: lo pone NexoB2B con la lista del comercio, y Odoo copia en las líneas el `precio_unitario` que devuelve.
+- NexoB2B no avisa a los comercios por API (solo email y push al celular). Un cron (`NexoB2B: actualizar estado de los pedidos`, cada 5 minutos) consulta `GET /store/ordenes/:id` de los pedidos abiertos. También hay un botón «Actualizar estado NexoB2B».
+- Cada cambio de estado se avisa con una nota interna que menciona al comprador del pedido: le llega a su bandeja de Odoo y no se le manda correo al mayorista.
+- **Motivo:** es el flujo que ya conoce quien compra en Odoo, y el precio no puede venir del cliente (así lo exige NexoB2B). El cron es lo único posible mientras NexoB2B no tenga avisos para comercios (pedido en `docs/PARA-NEXOB2B_de-NEXO-ODOO_ordenes-desde-conectores.md`).
+
+## DEC-012 — El pedido se confirma en Odoo cuando lo confirma el mayorista (aprobado por German el 23/11/2026)
+- Al enviarlo queda como «Solicitud enviada». Con `confirmado` (o cualquier estado posterior), Odoo ejecuta `button_confirm`, y con Inventario eso crea la recepción.
+- `cancelado` en NexoB2B cancela el pedido en Odoo. `devuelto` crea una actividad para el comprador. `entregado` crea una actividad para validar la recepción: **no se valida sola**, porque hay que contar lo que llegó.
+- Cancelar desde Odoo llama a `PUT /store/ordenes/:id/cancelar`, que NexoB2B permite solo en `cargada` o `devuelto`. Después Odoo no deja cancelar y explica que hay que hablarlo con el mayorista.
+- **No se usa «reenviar» de NexoB2B:** esa ruta toma el precio del cuerpo del pedido. Con un pedido devuelto, lo seguro es cancelarlo y armar uno nuevo.
+
+## DEC-013 — El envío se corta: se busca antes de reenviar
+- `POST /store/ordenes` no tiene clave de idempotencia. Cada pedido lleva en la primera línea de `notas` «Pedido de compra Odoo <número>».
+- Si el envío se corta sin respuesta (timeout, red o 5xx), el pedido queda marcado. Antes de reenviarlo, Odoo busca en `GET /store/ordenes` una orden de ese mayorista con esa referencia y, si la encuentra, la vincula en lugar de crear otra.
+- **Motivo:** un pedido duplicado a un mayorista es mercadería de más.
+
+## DEC-014 — La línea guarda la presentación elegida
+- `purchase.order.line.nexo_seller_id` apunta a la línea de proveedor (la presentación) de NexoB2B. Sin ella, se deduce por la unidad solo si hay una sola presentación con esa unidad; si hay más, Odoo pide que la elijas.
+- **Motivo:** en NexoB2B hay presentaciones distintas con el mismo factor (por ejemplo, «BOTELLA» y «CAJA», las dos con factor 1). En Odoo comparten unidad, y elegir por unidad mandaba la presentación equivocada.
+
+## DEC-015 — Primera prueba de un pedido real en producción (decisión de German, 23/11/2026)
+- NexoB2B no tiene entorno de pruebas. German decidió probar el envío con un pedido real de Jure Hnos SRL a «Mayorista de Prueba», que después se cancela.
+- **El pedido lo envía German, no el asistente.** Contradice la regla del brief («jamás crear pedidos reales en un comercio real»), así que queda registrado para que lo vea nexo-ecosystem. El entorno de pruebas se sigue pidiendo.
+
+## DEC-016 — Un comercio con Odoo cobra en el Punto de Venta de Odoo (decisión de German, 23/11/2026)
+- La caja y la atención de los pedidos de NexoTienda van en Odoo. NexoTienda no cambia: sigue hablando con NexoPOS, que queda como base de la tienda (catálogo, precio, stock y pedidos).
+- Odoo escribe precio y stock en NexoPOS por la API de ERP, en modo `ajuste`, y atiende los pedidos de tienda cuando NexoPOS los exponga. Propuesta completa en `docs/PROPUESTA-caja-odoo-y-nexotienda.md`.
+- **Motivo:** German lo eligió frente a la opción de seguir cobrando en NexoPOS. Tiene que quedar registrado en `DATA-OWNERSHIP.md` de nexo-ecosystem.
+
+## DEC-017 — Pruebas de NexoPOS en Jure Hnos SRL (decisión de German, 23/11/2026)
+- No hay un comercio de prueba en NexoPOS. Se prueba en Jure Hnos SRL, que es real.
+- El conector puede leer. Las escrituras de precio y stock, y los pedidos de prueba en su NexoTienda, los hace German. Antes de escribir stock se anota el número anterior para poder volver atrás.
+
+## DEC-018 — `nexo_pos` arranca en «solo lee»
+- Vincular, comparar y ver diferencias funciona sin escribir nada en NexoPOS. Precios y stock se mandan solo con «Mandar precios y stock a NexoPOS» prendido, que es por compañía y viene apagado. Apagado, tampoco se encolan movimientos.
+- **Motivo:** la prueba es en un comercio real (DEC-017). Vincular deja los precios marcados para mandar, y sin el interruptor una base de prueba con tareas programadas le pisaría los precios a NexoTienda.
+
+## DEC-019 — Stock a NexoPOS: ajustes y sin reintento a ciegas
+- Odoo manda solo `ajuste`, sumado por producto. Sin respuesta, la fila queda «Sin respuesta» y no se reintenta sola: `PUT /stock` no es idempotente. La resuelve la comparación de stock o una persona que revisó NexoPOS.
+- Las diferencias no se corrigen solas: decide el comerciante.
+- **Motivo:** un ajuste duplicado o un absoluto que pisa un pedido de NexoTienda aceptado son unidades que se venden y no están.
+
+## DEC-020 — El precio que va a NexoPOS lleva IVA
+- `list_price` más los impuestos de venta del producto (`compute_all`, `total_included`), en centavos.
+- **Motivo:** NexoTienda muestra y cobra el precio de NexoPOS, que es el precio al consumidor. PENDIENTE DE VALIDAR con German si algún comercio carga en NexoPOS precios sin IVA.

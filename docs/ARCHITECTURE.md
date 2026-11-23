@@ -15,6 +15,14 @@ nexo_b2b    (depende de nexo_core, purchase)
                      product.supplierinfo.nexo_presentacion_* / nexo_factor / nexo_ean_propio
                      res.partner.nexo_mayorista_id
   static/src/catalog acción de cliente OWL «nexo_b2b.catalog»
+
+nexo_pos    (depende de nexo_core, stock, account)
+  nexo.pos.service   clave, vincular por EAN, alta, precios (AbstractModel)
+  nexo.pos.stock.queue  ajustes de stock pendientes / enviados / sin respuesta (DEC-019)
+  nexo.pos.stock.diff   diferencias Odoo ↔ NexoPOS, con las dos formas de resolverlas
+  stock.move._action_done  encola lo que entra o sale del depósito elegido
+  campos             product.product.nexo_pos_id / nexo_pos_price_dirty
+  crons              cada minuto: precios y stock; cada día: comparar
 ```
 
 ## Flujo
