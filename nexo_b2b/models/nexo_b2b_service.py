@@ -6,7 +6,6 @@ Contrato verificado contra el código de NexoB2B (apps/backend/src/api/store):
 - GET  /store/comercios/me   → valida el token
 - GET  /store/productos      → q, page, pageSize (máx. 100), con_stock=1, mayorista_id
 """
-import base64
 import logging
 from urllib.parse import urljoin
 
@@ -14,6 +13,7 @@ import requests
 
 from odoo import _, api, fields, models, Command
 from odoo.exceptions import AccessError, UserError
+from odoo.tools.binary import BinaryBytes
 
 from odoo.addons.nexo_core.lib.client import NexoClient, NexoError
 
@@ -280,7 +280,7 @@ class NexoB2bService(models.AbstractModel):
             return TaxMap.browse(), None
         alicuota = float(alicuota)
         tax_map = TaxMap._for(alicuota)
-        if tax_map.confirmed:
+        if tax_map._is_usable():
             return tax_map, None
         tax_choice = choices.get('tax')
         if tax_choice:
@@ -288,6 +288,7 @@ class NexoB2bService(models.AbstractModel):
                 'sale_tax_id': tax_choice.get('sale_tax_id') or False,
                 'purchase_tax_id': tax_choice.get('purchase_tax_id') or False,
                 'confirmed': True,
+                'without_tax': bool(tax_choice.get('without_tax')),
             }
             if not vals['sale_tax_id'] and not vals['purchase_tax_id'] and not tax_choice.get('without_tax'):
                 raise UserError(_("Elegí los impuestos o confirmá que querés agregarlo sin impuestos."))
@@ -300,8 +301,8 @@ class NexoB2bService(models.AbstractModel):
         Tax = self.env['account.tax']
         return tax_map, {
             'alicuota': alicuota,
-            'sale_tax_id': (tax_map.sale_tax_id or TaxMap._candidate(alicuota, 'sale', company)).id or False,
-            'purchase_tax_id': (tax_map.purchase_tax_id or TaxMap._candidate(alicuota, 'purchase', company)).id or False,
+            'sale_tax_id': (tax_map._sale_tax() or TaxMap._candidate(alicuota, 'sale', company)).id or False,
+            'purchase_tax_id': (tax_map._purchase_tax() or TaxMap._candidate(alicuota, 'purchase', company)).id or False,
             'sale_taxes': [{'id': t.id, 'name': t.display_name} for t in Tax.search(
                 [('company_id', '=', company.id), ('type_tax_use', '=', 'sale')])],
             'purchase_taxes': [{'id': t.id, 'name': t.display_name} for t in Tax.search(
@@ -365,7 +366,8 @@ class NexoB2bService(models.AbstractModel):
             content = response.raw.read(IMAGE_MAX_BYTES + 1, decode_content=True)
             if len(content) > IMAGE_MAX_BYTES:
                 return None
-            return base64.b64encode(content)
+            # Odoo 20: los campos binarios reciben BinaryValue, no bytes en base64.
+            return BinaryBytes(content)
         except requests.exceptions.RequestException:
             return None
 
@@ -436,8 +438,8 @@ class NexoB2bService(models.AbstractModel):
                 'purchase_ok': True,
                 'sale_ok': True,
                 'uom_id': uom.id,
-                'taxes_id': [Command.set(tax_map.sale_tax_id.ids)],
-                'supplier_taxes_id': [Command.set(tax_map.purchase_tax_id.ids)],
+                'taxes_id': [Command.set(tax_map._sale_tax().ids)],
+                'supplier_taxes_id': [Command.set(tax_map._purchase_tax().ids)],
             }
             if categ:
                 vals['categ_id'] = categ.id

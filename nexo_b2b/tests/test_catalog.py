@@ -1,8 +1,10 @@
 """Pruebas sin red: NexoB2B se simula con respuestas armadas según el código
 real de apps/backend/src/api/store (ver docs/API_CONTRACTS.md)."""
+import base64
 import copy
 from unittest.mock import patch
 
+from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.nexo_core.lib.client import NexoClient, NexoError
@@ -70,6 +72,11 @@ class FakeNexoB2B:
         raise NexoError('not_found', status=404)
 
 
+# PNG de 1×1 px.
+PNG = base64.b64decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')
+
+
 @tagged('post_install', '-at_install', 'nexo')
 class TestNexoB2bCatalog(TransactionCase):
 
@@ -86,10 +93,14 @@ class TestNexoB2bCatalog(TransactionCase):
         # La base puede tener una sesión real (alguien inició sesión a mano):
         # los tests arrancan sin ninguna. Se deshace al terminar cada test.
         self.env['nexo.token'].sudo().search([]).unlink()
+        # Lo mismo con los mapeos que alguien haya cargado a mano.
+        self.env['nexo.b2b.tax.map'].search([]).unlink()
+        self.env['nexo.b2b.category.map'].search([]).unlink()
         self.fake = FakeNexoB2B()
         patcher = patch.object(NexoClient, 'request', autospec=True, side_effect=self.fake)
         patcher.start()
         self.addCleanup(patcher.stop)
+        self.real_download_image = type(self.service)._download_image
         image = patch.object(type(self.service), '_download_image', return_value=None)
         image.start()
         self.addCleanup(image.stop)
@@ -236,6 +247,52 @@ class TestNexoB2bCatalog(TransactionCase):
         self.service.add_product('pm_1', PRODUCTO['ean'], 'may_1', self._choices())
         tax_map = self.env['nexo.b2b.tax.map']._for(21)
         self.assertTrue(tax_map.confirmed)
+
+    def test_image_is_saved_on_product(self):
+        # Odoo 20 rechaza bytes en los campos binarios: hace falta BinaryValue.
+        response = type('Resp', (), {
+            'status_code': 200,
+            'headers': {'Content-Type': 'image/png'},
+            'raw': type('Raw', (), {'read': lambda self, n, decode_content=True: PNG})(),
+        })()
+        with patch('odoo.addons.nexo_b2b.models.nexo_b2b_service.requests.get', return_value=response):
+            image = self.real_download_image(self.service, 'https://api.nexob2b.test/x.png')
+        self._login()
+        with patch.object(type(self.service), '_download_image', return_value=image):
+            res = self.service.add_product('pm_1', PRODUCTO['ean'], 'may_1', self._choices())
+        self.assertEqual(res['status'], 'ok', res)
+        template = self.env['product.template'].browse(res['product_id'])
+        self.assertTrue(template.image_1920)
+
+    def test_deleted_tax_asks_again(self):
+        # Cambiar la localización fiscal borra impuestos: el mapeo no lo
+        # bloquea, queda sin impuesto y se vuelve a preguntar.
+        tax = self.env['account.tax'].create({'name': 'IVA 21 prueba', 'amount': 21, 'type_tax_use': 'purchase'})
+        tax_map = self.env['nexo.b2b.tax.map'].create({
+            'alicuota': float(PRODUCTO['alicuota_iva']), 'purchase_tax_id': tax.id, 'confirmed': True})
+        self.assertTrue(tax_map._is_usable())
+        tax.unlink()
+        self.assertFalse(tax_map.purchase_tax_id)
+        self.assertFalse(tax_map._is_usable())
+        self._login()
+        res = self.service.add_product('pm_1', PRODUCTO['ean'], 'may_1', {'category': {'mode': 'create'}})
+        self.assertEqual(res['status'], 'needs_input')
+        self.assertTrue(res['tax'])
+
+    def test_tax_of_wrong_type(self):
+        sale_tax = self.env['account.tax'].create({'name': 'IVA 21 venta prueba', 'amount': 21, 'type_tax_use': 'sale'})
+        TaxMap = self.env['nexo.b2b.tax.map']
+        with self.assertRaises(ValidationError):
+            TaxMap.create({'alicuota': 21.0, 'purchase_tax_id': sale_tax.id, 'confirmed': True})
+        # Una fila vieja con el tipo equivocado no se usa: se vuelve a preguntar.
+        tax_map = TaxMap.create({'alicuota': 21.0, 'confirmed': True, 'without_tax': True})
+        self.env.cr.execute("UPDATE nexo_b2b_tax_map SET purchase_tax_id = %s WHERE id = %s", (sale_tax.id, tax_map.id))
+        tax_map.invalidate_recordset()
+        self.assertFalse(tax_map._is_usable())
+        self._login()
+        res = self.service.add_product('pm_1', PRODUCTO['ean'], 'may_1', {'category': {'mode': 'create'}})
+        self.assertEqual(res['status'], 'needs_input')
+        self.assertNotEqual(res['tax']['purchase_tax_id'], sale_tax.id)
 
     def test_expired_session_asks_login(self):
         res = self.service.search_catalog('malbec')

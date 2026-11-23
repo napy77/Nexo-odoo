@@ -1,6 +1,6 @@
 {
     'name': 'Nexo · NexoB2B',
-    'version': '20.0.1.0.0',
+    'version': '20.0.1.0.1',
     'summary': 'Buscar en el catálogo maestro de NexoB2B y agregar productos con sus mayoristas',
     'category': 'Supply Chain/Purchase',
     'author': 'Linware',

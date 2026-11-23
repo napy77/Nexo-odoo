@@ -183,7 +183,7 @@
                                 <select class="form-select" t-on-change="(ev) => this.setPending('saleTaxId', ev)">
                                     <option value="">— Sin impuesto —</option>
                                     <t t-foreach="this.state.pending.tax.sale_taxes" t-as="tax" t-key="tax.id">
-                                        <option t-att-value="tax.id" t-att-selected="String(tax.id) === this.state.pending.saleTaxId" t-out="tax.name"/>
+                                        <option t-att-value="tax.id" t-att-selected="this.isPendingTax('saleTaxId', tax.id)" t-out="tax.name"/>
                                     </t>
                                 </select>
                             </div>
@@ -192,7 +192,7 @@
                                 <select class="form-select" t-on-change="(ev) => this.setPending('purchaseTaxId', ev)">
                                     <option value="">— Sin impuesto —</option>
                                     <t t-foreach="this.state.pending.tax.purchase_taxes" t-as="tax" t-key="tax.id">
-                                        <option t-att-value="tax.id" t-att-selected="String(tax.id) === this.state.pending.purchaseTaxId" t-out="tax.name"/>
+                                        <option t-att-value="tax.id" t-att-selected="this.isPendingTax('purchaseTaxId', tax.id)" t-out="tax.name"/>
                                     </t>
                                 </select>
                             </div>

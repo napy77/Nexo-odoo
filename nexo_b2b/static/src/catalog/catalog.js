@@ -313,6 +313,12 @@ export class NexoB2bCatalog extends Component {
         this.state.pending = null;
     }
 
+    // Las plantillas de OWL 3 no ven los globales de JS (String, Number…):
+    // la comparación se hace acá.
+    isPendingTax(field, taxId) {
+        return String(taxId) === this.state.pending?.[field];
+    }
+
     setPending(field, ev) {
         const target = ev.target;
         this.state.pending[field] = target.type === "checkbox" ? target.checked : target.value;
