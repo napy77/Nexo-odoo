@@ -8,12 +8,27 @@ const SERVICE = "nexo.b2b.service";
 // Pausa al escribir antes de buscar, como en NexoPOS.
 const SEARCH_DELAY = 400;
 
-const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
+// Sin decimales, como el portal del comercio en NexoB2B.
+const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+const VIEWS = ["lista", "chica", "grande"];
+const VIEW_KEY = "nexo_b2b_catalog_view";
+
+function savedView() {
+    try {
+        const view = window.localStorage.getItem(VIEW_KEY);
+        return VIEWS.includes(view) ? view : "lista";
+    } catch {
+        return "lista";
+    }
+}
 
 /**
  * Catálogo NexoB2B: busca en línea en el catálogo maestro y solo escribe en
  * Odoo al tocar «Agregar». Todo pasa por el servidor de Odoo (el token no
  * llega al navegador).
+ *
+ * Filtros, vistas y «Cargar más» copian el portal del comercio en NexoB2B
+ * (storefront/src/app/(portal)/comercio/productos/page.tsx).
  */
 export class NexoB2bCatalog extends Component {
     static template = "nexo_b2b.Catalog";
@@ -32,12 +47,23 @@ export class NexoB2bCatalog extends Component {
             login: { email: "", password: "", busy: false, error: null },
             query: "",
             conStock: true,
+            soloConAlta: false,
+            pasilloId: null,
+            rubroId: null,
+            subrubroId: null,
+            taxonomy: { pasillos: [], rubros: [], subrubros: [] },
+            view: savedView(),
             page: 1,
+            totalPages: 1,
+            total: 0,
+            productos: [],
+            searched: false,
             loading: false,
-            result: null,
+            loadingMore: false,
             error: null,
             busyKey: null,
             pending: null,
+            detail: null,
         });
         this.debouncedSearch = useDebounced(() => this.search(), SEARCH_DELAY);
 
@@ -46,9 +72,16 @@ export class NexoB2bCatalog extends Component {
             const params = this.props.action.params || {};
             this.state.showLogin = Boolean(params.login) || !this.state.status.connected;
             if (!this.state.showLogin) {
-                await this.search();
+                await Promise.all([this.loadTaxonomy(), this.search()]);
             }
         });
+    }
+
+    async loadTaxonomy() {
+        const res = await this.orm.call(SERVICE, "get_taxonomy", []);
+        if (res.ok) {
+            this.state.taxonomy = res;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -66,7 +99,7 @@ export class NexoB2bCatalog extends Component {
                 this.state.status = res.status;
                 this.state.showLogin = false;
                 this.notification.add(res.message, { type: "success" });
-                await this.search();
+                await Promise.all([this.loadTaxonomy(), this.search()]);
             } else {
                 login.error = res.message;
             }
@@ -88,36 +121,103 @@ export class NexoB2bCatalog extends Component {
     // ------------------------------------------------------------------
 
     onQueryInput() {
-        this.state.page = 1;
         this.debouncedSearch();
     }
 
-    onToggleStock(ev) {
-        // El tilde es «Mostrar sin stock»: tildado = no filtrar por stock.
-        this.state.conStock = !ev.target.checked;
-        this.state.page = 1;
+    toggleStock() {
+        this.state.conStock = !this.state.conStock;
         this.search();
     }
 
-    goToPage(page) {
-        this.state.page = page;
+    toggleAlta() {
+        // Como en el portal, se filtra sobre lo ya traído: NexoB2B no tiene
+        // este filtro del lado del servidor.
+        this.state.soloConAlta = !this.state.soloConAlta;
+    }
+
+    selectPasillo(id) {
+        this.state.pasilloId = this.state.pasilloId === id ? null : id;
+        this.state.rubroId = null;
+        this.state.subrubroId = null;
         this.search();
     }
 
-    async search() {
+    selectRubro(id) {
+        this.state.rubroId = this.state.rubroId === id ? null : id;
+        this.state.subrubroId = null;
+        this.search();
+    }
+
+    selectSubrubro(id) {
+        this.state.subrubroId = this.state.subrubroId === id ? null : id;
+        this.search();
+    }
+
+    clearFilters() {
+        this.state.pasilloId = null;
+        this.state.rubroId = null;
+        this.state.subrubroId = null;
+        this.state.soloConAlta = false;
+        this.search();
+    }
+
+    setView(view) {
+        this.state.view = view;
+        try {
+            window.localStorage.setItem(VIEW_KEY, view);
+        } catch {
+            // Sin almacenamiento (ventana privada): la vista vale solo ahora.
+        }
+    }
+
+    get hayFiltros() {
+        const s = this.state;
+        return Boolean(s.pasilloId || s.rubroId || s.subrubroId || s.soloConAlta);
+    }
+
+    get rubros() {
+        return this.state.taxonomy.rubros.filter((r) => r.pasillo_id === this.state.pasilloId);
+    }
+
+    get subrubros() {
+        return this.state.taxonomy.subrubros.filter((s) => s.rubro_id === this.state.rubroId);
+    }
+
+    get productosMostrados() {
+        const productos = this.state.productos;
+        return this.state.soloConAlta
+            ? productos.filter((p) => p.mayoristas.some((m) => m.tiene_alta === true))
+            : productos;
+    }
+
+    loadMore() {
+        return this.search({ append: true });
+    }
+
+    async search({ append = false } = {}) {
         const seq = ++this.searchSeq;
-        this.state.loading = true;
+        const page = append ? this.state.page + 1 : 1;
+        this.state[append ? "loadingMore" : "loading"] = true;
         try {
             const res = await this.orm.call(SERVICE, "search_catalog", [
                 this.state.query,
-                this.state.page,
+                page,
                 this.state.conStock,
+                {
+                    pasillo_id: this.state.pasilloId,
+                    rubro_id: this.state.rubroId,
+                    subrubro_id: this.state.subrubroId,
+                },
             ]);
             if (seq !== this.searchSeq) {
                 return;
             }
             if (res.ok) {
-                this.state.result = res;
+                this.state.productos = append ? [...this.state.productos, ...res.productos] : res.productos;
+                this.state.page = res.page;
+                this.state.totalPages = res.totalPages;
+                this.state.total = res.total;
+                this.state.searched = true;
                 this.state.error = null;
             } else {
                 this.state.error = res.message;
@@ -129,8 +229,17 @@ export class NexoB2bCatalog extends Component {
         } finally {
             if (seq === this.searchSeq) {
                 this.state.loading = false;
+                this.state.loadingMore = false;
             }
         }
+    }
+
+    openDetail(producto) {
+        this.state.detail = producto;
+    }
+
+    closeDetail() {
+        this.state.detail = null;
     }
 
     // ------------------------------------------------------------------
@@ -224,6 +333,23 @@ export class NexoB2bCatalog extends Component {
 
     formatPrice(value) {
         return value === null || value === undefined ? "—" : money.format(value);
+    }
+
+    /** Precio más bajo por unidad entre mayoristas, para las tarjetas. */
+    bestUnitPrice(producto) {
+        let best = null;
+        for (const m of producto.mayoristas) {
+            for (const pr of m.presentaciones) {
+                if (pr.precio_mostrar === null || pr.precio_mostrar === undefined) {
+                    continue;
+                }
+                const unit = pr.precio_mostrar / (pr.factor || 1);
+                if (best === null || unit < best) {
+                    best = unit;
+                }
+            }
+        }
+        return best;
     }
 
     priceLabel(mayorista) {

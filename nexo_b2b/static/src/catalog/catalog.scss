@@ -7,10 +7,123 @@
         width: 96px;
         height: 96px;
 
+        &.o_big {
+            width: 160px;
+            height: 160px;
+        }
+
         img {
             width: 100%;
             height: 100%;
             object-fit: contain;
         }
+    }
+
+    // Filtros en «chips», como el portal del comercio en NexoB2B.
+    .o_nexo_b2b_chip_row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .o_nexo_b2b_chip_label {
+        width: 4.5rem;
+        flex-shrink: 0;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: $o-gray-500;
+    }
+
+    .o_nexo_b2b_chip {
+        border: 1px solid $o-gray-300;
+        border-radius: 999px;
+        background: $o-view-background-color;
+        color: $o-gray-700;
+        padding: 0.3rem 0.9rem;
+        font-size: 0.85rem;
+
+        &:hover {
+            border-color: $o-gray-500;
+        }
+
+        &.o_active {
+            color: #fff;
+        }
+
+        &.o_pasillo { background: #059669; border-color: #059669; }
+        &.o_rubro { background: #2563eb; border-color: #2563eb; }
+        &.o_subrubro { background: #4f46e5; border-color: #4f46e5; }
+        &.o_dark { background: $o-gray-800; border-color: $o-gray-800; }
+        &.o_alta { background: #16a34a; border-color: #16a34a; }
+    }
+
+    .o_nexo_b2b_grid {
+        display: grid;
+        gap: 0.75rem;
+
+        &.o_chica {
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        }
+
+        &.o_grande {
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        }
+    }
+
+    .o_nexo_b2b_tile {
+        cursor: pointer;
+
+        &:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+        }
+    }
+
+    .o_nexo_b2b_tile_image {
+        position: relative;
+        aspect-ratio: 1;
+        padding: 0.5rem;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    }
+
+    .o_nexo_b2b_in_odoo {
+        position: absolute;
+        top: 0.5rem;
+        left: 0.5rem;
+    }
+
+    .o_nexo_b2b_tile_name {
+        font-weight: 500;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .o_nexo_b2b_overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1050;
+        background: rgba(0, 0, 0, 0.4);
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 4rem 1rem;
+        overflow: auto;
+
+        &.o_top {
+            z-index: 1060;
+        }
+    }
+
+    .o_nexo_b2b_modal {
+        width: 100%;
+        max-width: 860px;
     }
 }

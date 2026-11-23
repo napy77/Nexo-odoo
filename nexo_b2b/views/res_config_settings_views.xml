@@ -25,23 +25,23 @@
                                  help="Se inicia con el email y la contraseña de un usuario del comercio con permiso «comprar». La contraseña no se guarda.">
                             <field name="nexo_b2b_status" readonly="1"/>
                             <div class="mt8">
-                                <button name="action_nexo_b2b_connect" type="object" string="Iniciar sesión" class="btn-primary" icon="fa-sign-in"/>
-                                <button name="action_nexo_b2b_test" type="object" string="Probar conexión" class="btn-secondary ms-2" icon="fa-plug"/>
+                                <button name="action_nexo_b2b_connect" type="object" string="Iniciar sesión" class="btn-primary"/>
+                                <button name="action_nexo_b2b_test" type="object" string="Probar conexión" class="btn-secondary ms-2"/>
                                 <button name="action_nexo_b2b_logout" type="object" string="Cerrar sesión" class="btn-link ms-2"/>
                             </div>
                         </setting>
                     </block>
                     <block title="Mapeos" name="nexo_b2b_maps">
                         <setting id="nexo_b2b_tax_map" string="Alícuotas de IVA" help="Qué impuesto de venta y de compra de Odoo corresponde a cada alícuota de NexoB2B">
-                            <button name="action_nexo_b2b_tax_map" type="object" string="Revisar alícuotas" class="btn-link" icon="oi-arrow-right"/>
+                            <button name="action_nexo_b2b_tax_map" type="object" string="Revisar alícuotas" class="btn-link" icon="east"/>
                         </setting>
                         <setting id="nexo_b2b_category_map" string="Categorías" help="Dónde se ubica en Odoo cada categoría de NexoB2B ya usada">
-                            <button name="action_nexo_b2b_category_map" type="object" string="Revisar categorías" class="btn-link" icon="oi-arrow-right"/>
+                            <button name="action_nexo_b2b_category_map" type="object" string="Revisar categorías" class="btn-link" icon="east"/>
                         </setting>
                     </block>
                     <block title="Soporte" name="nexo_b2b_support">
                         <setting id="nexo_b2b_diagnostic" string="Diagnóstico" help="Registro de llamadas y paquete de diagnóstico, sin claves ni tokens">
-                            <button name="action_nexo_log" type="object" string="Abrir registro" class="btn-link" icon="oi-arrow-right"/>
+                            <button name="action_nexo_log" type="object" string="Abrir registro" class="btn-link" icon="east"/>
                         </setting>
                     </block>
                 </app>

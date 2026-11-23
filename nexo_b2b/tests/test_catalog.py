@@ -27,6 +27,7 @@ PRODUCTO = {
         'mayorista_id': 'may_1',
         'mayorista_nombre': 'Mayorista Test',
         'muestra_precio': 'neto',
+        'tiene_alta': True,
         'presentaciones': [
             {'id': 'pmp_u', 'presentacion_id': 'pp_u', 'nombre': 'Unidad', 'factor': 1, 'ean_propio': None,
              'precio': 1000.0, 'precio_mostrar': 1000.0, 'stock': 50},
@@ -58,7 +59,12 @@ class FakeNexoB2B:
         if path == '/store/comercios/me':
             return {'comercio': {'id': 'com_1', 'nombre': 'Comercio Test'}, 'usuario': None}
         if path == '/store/taxonomia':
-            return {'alicuotas': [{'id': 'a1', 'nombre': 'IVA 21', 'porcentaje': 21}]}
+            return {
+                'pasillos': [{'id': 'pas_1', 'nombre': 'Bebidas'}],
+                'rubros': [{'id': 'rub_1', 'nombre': 'Vinos', 'pasillo_id': 'pas_1'}],
+                'subrubros': [{'id': 'sub_1', 'nombre': 'Tintos', 'rubro_id': 'rub_1'}],
+                'alicuotas': [{'id': 'a1', 'nombre': 'IVA 21', 'porcentaje': 21}],
+            }
         if path == '/store/productos':
             return {'productos': [self.producto], 'total': 1, 'page': 1, 'pageSize': 20, 'totalPages': 1}
         raise NexoError('not_found', status=404)
@@ -77,6 +83,9 @@ class TestNexoB2bCatalog(TransactionCase):
 
     def setUp(self):
         super().setUp()
+        # La base puede tener una sesión real (alguien inició sesión a mano):
+        # los tests arrancan sin ninguna. Se deshace al terminar cada test.
+        self.env['nexo.token'].sudo().search([]).unlink()
         self.fake = FakeNexoB2B()
         patcher = patch.object(NexoClient, 'request', autospec=True, side_effect=self.fake)
         patcher.start()
@@ -121,19 +130,28 @@ class TestNexoB2bCatalog(TransactionCase):
 
     def test_search_params_and_image(self):
         self._login()
-        res = self.service.search_catalog('malbec', 2, True)
+        res = self.service.search_catalog('malbec', 2, True, {'pasillo_id': 'pas_1', 'rubro_id': 'rub_1', 'otro': 'x'})
         self.assertTrue(res['ok'])
         _method, path, params, auth = self.fake.calls[-1]
         self.assertEqual(path, '/store/productos')
-        self.assertEqual(params, {'page': 2, 'pageSize': 20, 'q': 'malbec', 'con_stock': '1'})
+        # comercio_id sale del token (nunca sin token) y los filtros desconocidos no pasan.
+        self.assertEqual(params, {'page': 2, 'pageSize': 50, 'q': 'malbec', 'con_stock': '1',
+                                  'pasillo_id': 'pas_1', 'rubro_id': 'rub_1', 'comercio_id': 'com_1'})
         self.assertTrue(auth)
         producto = res['productos'][0]
         self.assertEqual(producto['imagen_url'], 'https://api.nexob2b.test/uploads/fotos/pm_1.jpg')
         self.assertFalse(producto['mayoristas'][0]['agregado'])
+        self.assertTrue(producto['mayoristas'][0]['tiene_alta'])
 
         self.service.search_catalog('', 1, False)
         self.assertNotIn('con_stock', self.fake.calls[-1][2])
         self.assertNotIn('q', self.fake.calls[-1][2])
+
+    def test_taxonomy(self):
+        res = self.service.get_taxonomy()
+        self.assertTrue(res['ok'])
+        self.assertEqual(res['rubros'], [{'id': 'rub_1', 'nombre': 'Vinos', 'pasillo_id': 'pas_1'}])
+        self.assertEqual(res['subrubros'][0]['rubro_id'], 'rub_1')
 
     # -- Agregar ------------------------------------------------------
 

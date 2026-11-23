@@ -3,11 +3,24 @@
 
     <t t-name="nexo_b2b.Catalog">
         <div class="o_action o_nexo_b2b_catalog h-100 overflow-auto p-3">
-            <div class="d-flex align-items-center mb-3">
-                <h2 class="mb-0 me-auto">Catálogo NexoB2B</h2>
-                <span t-if="this.state.status and this.state.status.connected" class="text-muted small">
-                    <t t-out="this.state.status.message"/>
+            <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+                <h2 class="mb-0">Catálogo NexoB2B</h2>
+                <span t-if="!this.state.showLogin and this.state.searched" class="text-muted">
+                    <t t-out="this.productosMostrados.length"/> de <t t-out="this.state.total"/> productos
                 </span>
+                <div class="ms-auto d-flex align-items-center gap-3">
+                    <span t-if="this.state.status and this.state.status.connected" class="text-muted small">
+                        <t t-out="this.state.status.message"/>
+                    </span>
+                    <div t-if="!this.state.showLogin" class="btn-group btn-group-sm o_nexo_b2b_views">
+                        <button class="btn" t-att-class="this.state.view === 'lista' ? 'btn-primary' : 'btn-secondary'"
+                                t-on-click="() => this.setView('lista')">Lista</button>
+                        <button class="btn" t-att-class="this.state.view === 'chica' ? 'btn-primary' : 'btn-secondary'"
+                                t-on-click="() => this.setView('chica')">Chica</button>
+                        <button class="btn" t-att-class="this.state.view === 'grande' ? 'btn-primary' : 'btn-secondary'"
+                                t-on-click="() => this.setView('grande')">Grande</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Inicio de sesión -->
@@ -39,22 +52,125 @@
             </form>
 
             <t t-else="">
-                <!-- Búsqueda -->
-                <div class="d-flex gap-3 align-items-center mb-3">
-                    <input type="search" class="form-control o_nexo_b2b_query" autofocus="autofocus"
-                           placeholder="Buscar por nombre, marca o EAN…"
-                           t-model.proxy="this.state.query" t-on-input="this.onQueryInput"/>
-                    <label class="text-nowrap mb-0">
-                        <input type="checkbox" class="form-check-input me-1"
-                               t-att-checked="!this.state.conStock" t-on-change="this.onToggleStock"/>
-                        Mostrar sin stock
-                    </label>
+                <!-- Búsqueda y filtros -->
+                <input type="search" class="form-control form-control-lg o_nexo_b2b_query mb-3" autofocus="autofocus"
+                       placeholder="Buscar por nombre, EAN, marca…"
+                       t-model.proxy="this.state.query" t-on-input="this.onQueryInput"/>
+
+                <div class="o_nexo_b2b_filters mb-3">
+                    <div t-if="this.state.taxonomy.pasillos.length" class="o_nexo_b2b_chip_row">
+                        <span class="o_nexo_b2b_chip_label">Pasillo</span>
+                        <t t-foreach="this.state.taxonomy.pasillos" t-as="t" t-key="t.id">
+                            <button class="o_nexo_b2b_chip" t-att-class="{'o_active o_pasillo': this.state.pasilloId === t.id}"
+                                    t-on-click="() => this.selectPasillo(t.id)" t-out="t.nombre"/>
+                        </t>
+                    </div>
+                    <div t-if="this.state.pasilloId and this.rubros.length" class="o_nexo_b2b_chip_row">
+                        <span class="o_nexo_b2b_chip_label">Rubro</span>
+                        <t t-foreach="this.rubros" t-as="t" t-key="t.id">
+                            <button class="o_nexo_b2b_chip" t-att-class="{'o_active o_rubro': this.state.rubroId === t.id}"
+                                    t-on-click="() => this.selectRubro(t.id)" t-out="t.nombre"/>
+                        </t>
+                    </div>
+                    <div t-if="this.state.rubroId and this.subrubros.length" class="o_nexo_b2b_chip_row">
+                        <span class="o_nexo_b2b_chip_label">Subrubro</span>
+                        <t t-foreach="this.subrubros" t-as="t" t-key="t.id">
+                            <button class="o_nexo_b2b_chip" t-att-class="{'o_active o_subrubro': this.state.subrubroId === t.id}"
+                                    t-on-click="() => this.selectSubrubro(t.id)" t-out="t.nombre"/>
+                        </t>
+                    </div>
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <button class="o_nexo_b2b_chip" t-att-class="{'o_active o_dark': !this.state.conStock}"
+                                t-on-click="() => this.toggleStock()">
+                            <t t-if="!this.state.conStock">✓</t><t t-else="">○</t> Mostrar sin stock
+                        </button>
+                        <button class="o_nexo_b2b_chip" t-att-class="{'o_active o_alta': this.state.soloConAlta}"
+                                t-on-click="() => this.toggleAlta()">
+                            <t t-if="this.state.soloConAlta">✓</t><t t-else="">○</t> Solo mayoristas con alta aprobada
+                        </button>
+                        <button t-if="this.hayFiltros" class="btn btn-link btn-sm ms-auto"
+                                t-on-click="() => this.clearFilters()">Limpiar filtros</button>
+                    </div>
                 </div>
 
                 <div t-if="this.state.error" class="alert alert-danger" t-out="this.state.error"/>
 
-                <!-- Faltan datos para agregar -->
-                <div t-if="this.state.pending" class="card border-primary p-3 mb-3 o_nexo_b2b_pending">
+                <div t-if="this.state.loading" class="text-center text-muted py-5">Cargando catálogo…</div>
+                <div t-elif="this.state.searched and !this.productosMostrados.length" class="text-center text-muted py-5">
+                    No hay productos disponibles<t t-if="this.state.conStock"> con stock</t>.
+                </div>
+
+                <!-- Vista lista -->
+                <t t-elif="this.state.view === 'lista'">
+                    <div t-foreach="this.productosMostrados" t-as="producto" t-key="producto.id"
+                         class="card mb-2 o_nexo_b2b_product">
+                        <div class="card-body d-flex gap-3">
+                            <div class="o_nexo_b2b_image flex-shrink-0">
+                                <img t-if="producto.imagen_url" t-att-src="producto.imagen_url" loading="lazy" alt=""/>
+                            </div>
+                            <div class="flex-grow-1 min-w-0">
+                                <t t-call="nexo_b2b.Catalog.Header"/>
+                                <t t-call="nexo_b2b.Catalog.Mayoristas"/>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+
+                <!-- Vistas grilla -->
+                <div t-else="" class="o_nexo_b2b_grid" t-att-class="this.state.view === 'chica' ? 'o_chica' : 'o_grande'">
+                    <div t-foreach="this.productosMostrados" t-as="producto" t-key="producto.id"
+                         class="card o_nexo_b2b_tile" t-on-click="() => this.openDetail(producto)">
+                        <div class="o_nexo_b2b_tile_image">
+                            <img t-if="producto.imagen_url" t-att-src="producto.imagen_url" loading="lazy" alt=""/>
+                            <span t-if="producto.odoo_product_id" class="badge text-bg-success o_nexo_b2b_in_odoo">En Odoo</span>
+                        </div>
+                        <div class="card-body p-2">
+                            <div class="o_nexo_b2b_tile_name" t-out="producto.nombre"/>
+                            <div t-if="producto.marca" class="text-muted small text-truncate" t-out="producto.marca"/>
+                            <div class="mt-1">
+                                <t t-set="best" t-value="this.bestUnitPrice(producto)"/>
+                                <t t-if="best !== null">
+                                    <span class="text-muted small">desde </span>
+                                    <b t-out="this.formatPrice(best)"/>
+                                </t>
+                            </div>
+                            <div class="text-muted small">
+                                <t t-out="producto.mayoristas.length"/> mayorista<t t-if="producto.mayoristas.length !== 1">s</t>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div t-if="!this.state.loading and this.state.page &lt; this.state.totalPages" class="text-center my-3">
+                    <button class="btn btn-secondary" t-att-disabled="this.state.loadingMore" t-on-click="() => this.loadMore()">
+                        <t t-if="this.state.loadingMore">Cargando…</t>
+                        <t t-else="">Cargar más productos</t>
+                    </button>
+                </div>
+            </t>
+
+            <!-- Detalle (vistas grilla) -->
+            <div t-if="this.state.detail" class="o_nexo_b2b_overlay" t-on-click="() => this.closeDetail()">
+                <div class="card o_nexo_b2b_modal" t-on-click.stop="() => {}">
+                    <t t-set="producto" t-value="this.state.detail"/>
+                    <div class="card-body">
+                        <div class="d-flex gap-3">
+                            <div class="o_nexo_b2b_image o_big flex-shrink-0">
+                                <img t-if="producto.imagen_url" t-att-src="producto.imagen_url" alt=""/>
+                            </div>
+                            <div class="flex-grow-1 min-w-0">
+                                <t t-call="nexo_b2b.Catalog.Header"/>
+                            </div>
+                            <button class="btn-close" aria-label="Cerrar" t-on-click="() => this.closeDetail()"/>
+                        </div>
+                        <t t-call="nexo_b2b.Catalog.Mayoristas"/>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Faltan datos para agregar -->
+            <div t-if="this.state.pending" class="o_nexo_b2b_overlay o_top">
+                <div class="card o_nexo_b2b_modal p-3 o_nexo_b2b_pending">
                     <h5>Antes de agregar «<t t-out="this.state.pending.producto.nombre"/>»</h5>
                     <div t-if="this.state.pending.tax" class="mb-3">
                         <p class="mb-1">
@@ -62,7 +178,7 @@
                             Elegí los impuestos de Odoo (queda guardado para los próximos productos).
                         </p>
                         <div class="row g-2">
-                            <div class="col-md-5">
+                            <div class="col-md-6">
                                 <label class="form-label small mb-0">Impuesto de venta</label>
                                 <select class="form-select" t-on-change="(ev) => this.setPending('saleTaxId', ev)">
                                     <option value="">— Sin impuesto —</option>
@@ -71,7 +187,7 @@
                                     </t>
                                 </select>
                             </div>
-                            <div class="col-md-5">
+                            <div class="col-md-6">
                                 <label class="form-label small mb-0">Impuesto de compra</label>
                                 <select class="form-select" t-on-change="(ev) => this.setPending('purchaseTaxId', ev)">
                                     <option value="">— Sin impuesto —</option>
@@ -113,80 +229,62 @@
                         <button class="btn btn-secondary" t-on-click="() => this.cancelPending()">Cancelar</button>
                     </div>
                 </div>
-
-                <div t-if="this.state.loading" class="text-muted mb-2">Buscando…</div>
-
-                <t t-if="this.state.result">
-                    <div class="text-muted small mb-2">
-                        <t t-out="this.state.result.total"/> producto(s)
-                    </div>
-                    <div t-if="!this.state.result.productos.length and !this.state.loading" class="text-muted">
-                        No hay resultados<t t-if="this.state.conStock"> con stock</t>.
-                    </div>
-
-                    <div t-foreach="this.state.result.productos" t-as="producto" t-key="producto.id"
-                         class="card mb-2 o_nexo_b2b_product">
-                        <div class="card-body d-flex gap-3">
-                            <div class="o_nexo_b2b_image flex-shrink-0">
-                                <img t-if="producto.imagen_url" t-att-src="producto.imagen_url" loading="lazy" alt=""/>
-                            </div>
-                            <div class="flex-grow-1">
-                                <div class="d-flex align-items-start">
-                                    <div class="me-auto">
-                                        <h5 class="mb-0" t-out="producto.nombre"/>
-                                        <div class="text-muted small">
-                                            <t t-if="producto.marca"><t t-out="producto.marca"/> · </t>
-                                            EAN <t t-out="producto.ean or '—'"/>
-                                            <t t-if="producto.alicuota_iva !== null"> · IVA <t t-out="producto.alicuota_iva"/>%</t>
-                                            <t t-if="producto.taxonomia"> · <t t-out="producto.taxonomia"/></t>
-                                        </div>
-                                    </div>
-                                    <button t-if="producto.odoo_product_id" class="btn btn-link btn-sm"
-                                            t-on-click="() => this.openProduct(producto)">Ver en Odoo</button>
-                                </div>
-                                <table class="table table-sm mt-2 mb-0">
-                                    <tbody>
-                                        <t t-foreach="producto.mayoristas" t-as="mayorista" t-key="mayorista.id">
-                                            <tr>
-                                                <td class="fw-bold" t-out="mayorista.nombre"/>
-                                                <td>
-                                                    <div t-foreach="mayorista.presentaciones" t-as="pr" t-key="pr.id" class="small">
-                                                        <t t-out="pr.nombre"/>
-                                                        <t t-if="pr.factor and pr.factor !== 1"> (<t t-out="pr.factor"/> u.)</t>:
-                                                        <b t-out="this.formatPrice(pr.precio_mostrar)"/>
-                                                        <span class="text-muted"> <t t-out="this.priceLabel(mayorista)"/></span>
-                                                        · stock <t t-out="pr.stock === null or pr.stock === undefined ? '—' : pr.stock"/>
-                                                    </div>
-                                                </td>
-                                                <td class="text-end text-nowrap">
-                                                    <button class="btn btn-sm"
-                                                            t-att-class="mayorista.agregado ? 'btn-outline-secondary' : 'btn-primary'"
-                                                            t-att-disabled="this.isBusy(producto, mayorista)"
-                                                            t-on-click="() => this.add(producto, mayorista)">
-                                                        <t t-if="this.isBusy(producto, mayorista)">Agregando…</t>
-                                                        <t t-elif="mayorista.agregado">Actualizar</t>
-                                                        <t t-else="">Agregar</t>
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        </t>
-                                    </tbody>
-                                </table>
-                                <div t-if="!producto.mayoristas.length" class="text-muted small mt-2">Ningún mayorista lo ofrece.</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div t-if="this.state.result.totalPages > 1" class="d-flex gap-2 align-items-center mt-3">
-                        <button class="btn btn-secondary btn-sm" t-att-disabled="this.state.page &lt;= 1"
-                                t-on-click="() => this.goToPage(this.state.page - 1)">Anterior</button>
-                        <span>Página <t t-out="this.state.page"/> de <t t-out="this.state.result.totalPages"/></span>
-                        <button class="btn btn-secondary btn-sm" t-att-disabled="this.state.page >= this.state.result.totalPages"
-                                t-on-click="() => this.goToPage(this.state.page + 1)">Siguiente</button>
-                    </div>
-                </t>
-            </t>
+            </div>
         </div>
+    </t>
+
+    <!-- Nombre, marca, EAN, IVA y taxonomía. Usa `producto` del contexto. -->
+    <t t-name="nexo_b2b.Catalog.Header">
+        <div class="d-flex align-items-start">
+            <div class="me-auto min-w-0">
+                <h5 class="mb-0" t-out="producto.nombre"/>
+                <div class="text-muted small">
+                    <t t-if="producto.marca"><t t-out="producto.marca"/> · </t>
+                    EAN <t t-out="producto.ean or '—'"/>
+                    <t t-if="producto.alicuota_iva !== null"> · IVA <t t-out="producto.alicuota_iva"/>%</t>
+                    <t t-if="producto.taxonomia"> · <t t-out="producto.taxonomia"/></t>
+                </div>
+            </div>
+            <button t-if="producto.odoo_product_id" class="btn btn-link btn-sm text-nowrap"
+                    t-on-click="() => this.openProduct(producto)">Ver en Odoo</button>
+        </div>
+    </t>
+
+    <!-- Mayoristas con sus presentaciones y «Agregar». Usa `producto` del contexto. -->
+    <t t-name="nexo_b2b.Catalog.Mayoristas">
+        <table class="table table-sm mt-2 mb-0">
+            <tbody>
+                <t t-foreach="producto.mayoristas" t-as="mayorista" t-key="mayorista.id">
+                    <tr>
+                        <td class="fw-bold">
+                            <t t-out="mayorista.nombre"/>
+                            <span t-if="mayorista.tiene_alta === true" class="badge text-bg-success ms-1">✓ Alta</span>
+                            <span t-elif="mayorista.tiene_alta === false" class="badge text-bg-light ms-1">Sin alta</span>
+                        </td>
+                        <td>
+                            <div t-foreach="mayorista.presentaciones" t-as="pr" t-key="pr.id" class="small">
+                                <t t-out="pr.nombre"/>
+                                <t t-if="pr.factor and pr.factor !== 1"> (<t t-out="pr.factor"/> u.)</t>:
+                                <b t-out="this.formatPrice(pr.precio_mostrar)"/>
+                                <span class="text-muted"> <t t-out="this.priceLabel(mayorista)"/></span>
+                                · stock <t t-out="pr.stock === null or pr.stock === undefined ? '—' : pr.stock"/>
+                            </div>
+                        </td>
+                        <td class="text-end text-nowrap">
+                            <button class="btn btn-sm"
+                                    t-att-class="mayorista.agregado ? 'btn-outline-secondary' : 'btn-primary'"
+                                    t-att-disabled="this.isBusy(producto, mayorista)"
+                                    t-on-click="() => this.add(producto, mayorista)">
+                                <t t-if="this.isBusy(producto, mayorista)">Agregando…</t>
+                                <t t-elif="mayorista.agregado">Actualizar</t>
+                                <t t-else="">Agregar</t>
+                            </button>
+                        </td>
+                    </tr>
+                </t>
+            </tbody>
+        </table>
+        <div t-if="!producto.mayoristas.length" class="text-muted small mt-2">Ningún mayorista lo ofrece.</div>
     </t>
 
 </templates>

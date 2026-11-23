@@ -27,7 +27,9 @@ PENDIENTE DE VALIDAR: si NexoB2B registra `X-Request-Id` de su lado.
 
 ### `GET /store/productos` — IMPLEMENTADO (búsqueda y relectura al agregar)
 - **No exige token**, pero con token aplica la lista de precios del comercio. El conector lo manda siempre y nunca usa `comercio_id` sin token.
-- Parámetros que usa: `q`, `page`, `pageSize` (máximo 100; el conector usa 20), `con_stock=1` (sin él no se filtra por stock) y `mayorista_id`.
+- Parámetros que usa: `q`, `page`, `pageSize` (máximo 100; el conector usa 50, como el portal), `con_stock=1` (sin él no se filtra por stock), `pasillo_id`, `rubro_id`, `subrubro_id`, `mayorista_id` y `comercio_id`.
+- `comercio_id` se toma del token guardado y va **siempre junto con el token**. Con él, NexoB2B filtra los mayoristas por la zona del comercio y completa `tiene_alta`. El portal del comercio lo manda sin token; el conector no.
+- Verificado contra la API en producción (23/11/2026): con stock y sin filtros, 3879 productos para Jure Hnos SRL.
 - Respuesta: `{ productos, total, page, pageSize, totalPages }`.
 - Producto: `id` (pm_…), `ean`, `nombre`, `descripcion`, `marca`, `unidad_base`, `alicuota_iva`, `imagen_url`, `imagenes[]`, `pasillo_id`, `rubro_id`, `subrubro_id`, `pasillo_nombre`, `rubro_nombre`, `subrubro_nombre`, `actualizado_at` y `mayoristas[]`.
 - Mayorista: `listing_id`, `mayorista_id`, `mayorista_nombre`, `muestra_precio`, `tiene_alta`, `presentaciones[]`.
@@ -35,5 +37,7 @@ PENDIENTE DE VALIDAR: si NexoB2B registra `X-Request-Id` de su lado.
 - **No trae** `sku` ni `cantidad_minima`: ver el pedido a NexoB2B en `docs/`.
 - No hay GET por id. Para releer un producto, el conector busca `q=<ean>&mayorista_id=<may>` y filtra por `id`.
 
-### `GET /store/taxonomia` — IMPLEMENTADO (propuesta de alícuotas)
-- Público. Devuelve `{ rubros, subrubros, pasillos, tipos_impositivos, alicuotas }`. Cada alícuota trae `id`, `nombre`, `porcentaje` y `activo`.
+### `GET /store/taxonomia` — IMPLEMENTADO (filtros y propuesta de alícuotas)
+- Público. Devuelve `{ rubros, subrubros, pasillos, tipos_impositivos, alicuotas }`.
+- Pasillo: `id` y `nombre`. Rubro: `id`, `nombre` y `pasillo_id` (puede venir vacío). Subrubro: `id`, `nombre` y `rubro_id`. Alícuota: `id`, `nombre`, `porcentaje` y `activo`.
+- Verificado en producción: 20 pasillos y 138 rubros, de los cuales 21 no tienen pasillo.

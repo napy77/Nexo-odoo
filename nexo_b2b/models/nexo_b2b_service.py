@@ -20,7 +20,9 @@ from odoo.addons.nexo_core.lib.client import NexoClient, NexoError
 _logger = logging.getLogger(__name__)
 
 SERVICE = 'nexob2b'
-PAGE_SIZE = 20
+# Igual que el portal del comercio en NexoB2B.
+PAGE_SIZE = 50
+TAXONOMY_FILTERS = ('pasillo_id', 'rubro_id', 'subrubro_id')
 IMAGE_MAX_BYTES = 5 * 1024 * 1024
 IMAGE_TIMEOUT = 10
 
@@ -163,13 +165,41 @@ class NexoB2bService(models.AbstractModel):
         return urljoin(url.rstrip('/') + '/', path)
 
     @api.model
-    def search_catalog(self, query, page=1, con_stock=True):
+    def get_taxonomy(self):
+        """Pasillos, rubros y subrubros activos, para los filtros de la pantalla."""
         self._check_user()
+        try:
+            data = self._call('GET', '/store/taxonomia', auth=False)
+        except NexoError as e:
+            return {'ok': False, 'message': e.user_message()}
+        return {
+            'ok': True,
+            'pasillos': [{'id': t.get('id'), 'nombre': t.get('nombre')} for t in data.get('pasillos') or []],
+            'rubros': [{'id': t.get('id'), 'nombre': t.get('nombre'), 'pasillo_id': t.get('pasillo_id')}
+                       for t in data.get('rubros') or []],
+            'subrubros': [{'id': t.get('id'), 'nombre': t.get('nombre'), 'rubro_id': t.get('rubro_id')}
+                          for t in data.get('subrubros') or []],
+        }
+
+    @api.model
+    def search_catalog(self, query, page=1, con_stock=True, filters=None):
+        """Misma búsqueda que el portal del comercio en NexoB2B
+        (storefront/src/app/(portal)/comercio/productos/page.tsx)."""
+        self._check_user()
+        filters = filters or {}
         params = {'page': max(1, int(page or 1)), 'pageSize': PAGE_SIZE}
         if query and query.strip():
             params['q'] = query.strip()
         if con_stock:
             params['con_stock'] = '1'
+        for key in TAXONOMY_FILTERS:
+            if filters.get(key):
+                params[key] = filters[key]
+        # Con el comercio, NexoB2B filtra por zona y dice si hay alta con cada
+        # mayorista (tiene_alta). Siempre acompañado del token, nunca solo.
+        comercio_id = self.env['nexo.token']._get(SERVICE).account_id
+        if comercio_id:
+            params['comercio_id'] = comercio_id
         try:
             data = self._call('GET', '/store/productos', params=params)
         except NexoError as e:
@@ -202,6 +232,7 @@ class NexoB2bService(models.AbstractModel):
                 'id': m.get('mayorista_id'),
                 'nombre': m.get('mayorista_nombre'),
                 'muestra_precio': m.get('muestra_precio'),
+                'tiene_alta': m.get('tiene_alta'),
                 'agregado': bool(m.get('presentaciones')) and all(
                     pr.get('id') in existing for pr in m.get('presentaciones') or []),
                 'presentaciones': [{
