@@ -20,6 +20,9 @@ class NexoPosStockDiff(models.Model):
     uom_id = fields.Many2one(related='product_id.uom_id')
     stock_odoo = fields.Float('Odoo', digits='Product Unit', readonly=True)
     stock_nexopos = fields.Float('NexoPOS', digits='Product Unit', readonly=True)
+    en_pedidos = fields.Float('En pedidos de tienda', digits='Product Unit', readonly=True,
+                              help="Pedidos de NexoTienda aceptados y sin entregar: NexoPOS ya los descontó y Odoo "
+                                   "los descuenta al entregarlos.")
     pendiente = fields.Float('En camino a NexoPOS', digits='Product Unit', readonly=True,
                              help="Ajustes de Odoo que todavía no se mandaron.")
     sin_respuesta = fields.Float('Sin respuesta', digits='Product Unit', readonly=True,
@@ -43,6 +46,7 @@ class NexoPosStockDiff(models.Model):
         for row in cola:
             key = (row.product_id.id, row.state)
             pend[key] = pend.get(key, 0.0) + row.cantidad
+        apartado = self._nexo_pos_reserved(products)
         self.search([('company_id', '=', company.id)]).unlink()
         now = fields.Datetime.now()
         vals = []
@@ -50,18 +54,25 @@ class NexoPosStockDiff(models.Model):
             odoo = product.qty_available
             nexopos = float(remotos[product.nexo_pos_id].get('stock') or 0)
             pendiente = pend.get((product.id, 'pending'), 0.0)
-            diferencia = product.uom_id.round(odoo - nexopos - pendiente)
+            en_pedidos = apartado.get(product.id, 0.0)
+            diferencia = product.uom_id.round(odoo - en_pedidos - nexopos - pendiente)
             if product.uom_id.compare(diferencia, 0.0) == 0:
                 continue
             vals.append({
                 'company_id': company.id, 'product_id': product.id, 'stock_odoo': odoo,
-                'stock_nexopos': nexopos, 'pendiente': pendiente,
+                'stock_nexopos': nexopos, 'en_pedidos': en_pedidos, 'pendiente': pendiente,
                 'sin_respuesta': pend.get((product.id, 'uncertain'), 0.0),
                 'diferencia': diferencia, 'abs_diferencia': abs(diferencia), 'compared_at': now,
             })
         self.create(vals)
         self.env['ir.config_parameter'].sudo().set_str(f'nexo_pos.compared_at.{company.id}', fields.Datetime.to_string(now))
         return len(vals)
+
+    @api.model
+    def _nexo_pos_reserved(self, products):
+        """{product_id: cantidad} que NexoPOS ya descontó y Odoo todavía no.
+        Lo llena `nexo_tienda` con los pedidos aceptados sin entregar."""
+        return {}
 
     def action_compare_now(self):
         # Botón de la lista con display="always": llega con los registros

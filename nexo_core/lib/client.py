@@ -40,9 +40,15 @@ class NexoError(Exception):
         'client': "{svc} rechazó la solicitud.",
     }
 
-    def __init__(self, kind, message=None, status=None, request_id=None, detail=None, service='NexoB2B'):
+    def __init__(self, kind, message=None, status=None, request_id=None, detail=None, service='NexoB2B',
+                 code=None, data=None):
         self.kind = kind
         self.status = status
+        # `code` es el identificador estable que manda el servidor al lado del
+        # mensaje (NexoPOS: `paso_invalido`, `pedido_inexistente`…), y `data`
+        # el cuerpo del error. Sirven para decidir sin leer el texto.
+        self.code = code
+        self.data = data
         self.request_id = request_id
         # Mensaje que devolvió el servidor (ya viene pensado para el usuario
         # en NexoB2B, por ejemplo «Tu usuario está desactivado…»).
@@ -175,17 +181,19 @@ class NexoClient:
             if data is None:
                 raise NexoError('invalid_response', service=service, status=status, request_id=request_id)
             return data
+        extra = {'code': data.get('code') if isinstance(data.get('code'), str) else None, 'data': data} \
+            if isinstance(data, dict) else {}
         if 300 <= status < 400:
             # Una redirección suele ser http→https o una URL de otro sitio.
-            raise NexoError('not_found', service=service, status=status, request_id=request_id)
+            raise NexoError('not_found', service=service, status=status, request_id=request_id, **extra)
         if status == 401:
-            raise NexoError('auth', service=service, status=status, request_id=request_id, detail=detail)
+            raise NexoError('auth', service=service, status=status, request_id=request_id, detail=detail, **extra)
         if status == 403:
-            raise NexoError('forbidden', service=service, message=detail, status=status, request_id=request_id)
+            raise NexoError('forbidden', service=service, message=detail, status=status, request_id=request_id, **extra)
         if status == 404:
-            raise NexoError('not_found', service=service, status=status, request_id=request_id)
+            raise NexoError('not_found', service=service, status=status, request_id=request_id, **extra)
         if status == 400 and detail and 'publishable' in detail.lower():
-            raise NexoError('bad_key', service=service, status=status, request_id=request_id)
+            raise NexoError('bad_key', service=service, status=status, request_id=request_id, **extra)
         if status >= 500:
-            raise NexoError('server', service=service, status=status, request_id=request_id)
-        raise NexoError('client', service=service, message=detail, status=status, request_id=request_id)
+            raise NexoError('server', service=service, status=status, request_id=request_id, **extra)
+        raise NexoError('client', service=service, message=detail, status=status, request_id=request_id, **extra)

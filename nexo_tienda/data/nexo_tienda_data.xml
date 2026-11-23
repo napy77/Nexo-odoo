@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="crm_team_nexotienda" model="crm.team">
+        <field name="name">NexoTienda</field>
+        <field name="company_id" eval="False"/>
+    </record>
+    <!-- Para un pedido sin teléfono: no se crea un contacto por cada uno. -->
+    <record id="partner_nexotienda" model="res.partner">
+        <field name="name">Cliente de NexoTienda</field>
+        <field name="company_id" eval="False"/>
+    </record>
+    <record id="product_cargo" model="product.product">
+        <field name="name">Cargo de NexoTienda</field>
+        <field name="type">service</field>
+        <field name="sale_ok" eval="True"/>
+        <field name="purchase_ok" eval="False"/>
+        <field name="list_price">0</field>
+        <field name="taxes_id" eval="[(6, 0, [])]"/>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

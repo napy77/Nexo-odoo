@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_nexo_tienda" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.nexo_tienda</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="nexo_pos.res_config_settings_view_form_nexo_pos"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='nexo_pos_sync']" position="after">
+                <block title="Pedidos de NexoTienda" name="nexo_tienda">
+                    <setting id="nexo_tienda_enabled" string="Atender los pedidos de NexoTienda en Odoo"
+                             help="Cada minuto trae los pedidos de NexoPOS como pedidos de venta, para cobrarlos en el Punto de Venta. Aceptar, listo y cancelar se hacen desde Odoo y NexoPOS le avisa al comprador. Los pedidos siguen viéndose en NexoPOS.">
+                        <field name="nexo_tienda_enabled"/>
+                        <div class="mt8">
+                            <button name="action_nexo_tienda_orders" type="object" string="Ver pedidos" class="btn-link" icon="east"/>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

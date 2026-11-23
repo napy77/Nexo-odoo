@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_order_form_nexo_tienda" model="ir.ui.view">
+        <field name="name">sale.order.form.nexo_tienda</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="before">
+                <field name="nexo_tienda_order_id" invisible="1"/>
+                <field name="nexo_tienda_no_cobrar" invisible="1"/>
+                <div class="alert alert-info mb-0" role="alert" invisible="not nexo_tienda_order_id">
+                    Pedido de NexoTienda <field name="nexo_tienda_order_id" readonly="1" class="d-inline"/>
+                    · <field name="nexo_tienda_state" readonly="1" class="d-inline"/>.
+                    Aceptar, listo y cancelar se hacen desde el pedido de NexoTienda.
+                    <strong invisible="not nexo_tienda_no_cobrar"> No lo cobres en la caja: <field name="nexo_tienda_pago" readonly="1" class="d-inline"/>.</strong>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

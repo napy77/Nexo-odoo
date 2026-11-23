@@ -19,6 +19,7 @@
                 <field name="barcode" optional="show"/>
                 <field name="stock_odoo"/>
                 <field name="stock_nexopos"/>
+                <field name="en_pedidos" optional="show"/>
                 <field name="pendiente" optional="show"/>
                 <field name="sin_respuesta" optional="show" decoration-warning="sin_respuesta != 0"/>
                 <field name="diferencia" decoration-danger="diferencia &lt; 0" decoration-info="diferencia &gt; 0"/>

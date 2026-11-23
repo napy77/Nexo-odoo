@@ -36,8 +36,18 @@ class StockMove(models.Model):
                 entra = move.location_dest_id._child_of(stock_loc)
                 if sale == entra:
                     continue
-                qty = move.uom_id._compute_quantity(move.quantity, move.product_id.uom_id)
+                qty = move._nexo_pos_qty_to_send(
+                    move.uom_id._compute_quantity(move.quantity, move.product_id.uom_id), sale)
+                if move.product_id.uom_id.is_zero(qty):
+                    continue
                 vals.append({'company_id': company.id, 'product_id': move.product_id.id, 'move_id': move.id,
                              'cantidad': qty if entra else -qty})
         if vals:
             Queue.create(vals)
+
+    def _nexo_pos_qty_to_send(self, qty, sale):
+        """Cuánto de este movimiento le falta saber a NexoPOS, en la unidad del
+        producto. `sale` es si sale del depósito. Lo achica `nexo_tienda` para
+        lo que NexoPOS ya descontó al aceptar un pedido de tienda."""
+        self.ensure_one()
+        return qty
