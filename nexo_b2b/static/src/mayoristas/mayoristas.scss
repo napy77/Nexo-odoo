@@ -1,0 +1,103 @@
+// Tarjetas como «Descubrí mayoristas» del portal del comercio en NexoB2B.
+// Los chips, el fondo del modal y el modal vienen de catalog.scss.
+.o_nexo_b2b_mayoristas {
+    .o_nexo_b2b_mayorista_grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+
+    .o_nexo_b2b_mayorista {
+        overflow: hidden;
+
+        &:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+        }
+    }
+
+    .o_nexo_b2b_portada {
+        position: relative;
+        height: 6rem;
+        background: linear-gradient(135deg, #2563eb, #059669);
+
+        > img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+    }
+
+    .o_nexo_b2b_distancia {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 999px;
+        padding: 0.1rem 0.5rem;
+    }
+
+    .o_nexo_b2b_logo {
+        position: absolute;
+        left: 1.25rem;
+        bottom: -1.75rem;
+        width: 4rem;
+        height: 4rem;
+        border-radius: 0.75rem;
+        border: 3px solid $o-view-background-color;
+        background: $o-gray-100;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        color: $o-gray-600;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    }
+
+    .o_nexo_b2b_link {
+        cursor: pointer;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+
+    .o_nexo_b2b_muestras {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .o_nexo_b2b_muestra {
+        aspect-ratio: 1;
+        border: 1px solid $o-gray-200;
+        border-radius: 0.5rem;
+        padding: 0.25rem;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    }
+
+    .o_nexo_b2b_descripcion {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .o_nexo_b2b_alta {
+        max-width: 560px;
+    }
+}

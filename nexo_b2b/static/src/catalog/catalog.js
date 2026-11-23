@@ -51,6 +51,8 @@ export class NexoB2bCatalog extends Component {
             pasilloId: null,
             rubroId: null,
             subrubroId: null,
+            // Desde «Mayoristas NexoB2B» → «Ver catálogo».
+            mayorista: null,
             taxonomy: { pasillos: [], rubros: [], subrubros: [] },
             view: savedView(),
             page: 1,
@@ -70,6 +72,9 @@ export class NexoB2bCatalog extends Component {
         onWillStart(async () => {
             this.state.status = await this.orm.call(SERVICE, "get_status", []);
             const params = this.props.action.params || {};
+            if (params.mayorista_id) {
+                this.state.mayorista = { id: params.mayorista_id, nombre: params.mayorista_nombre };
+            }
             this.state.showLogin = Boolean(params.login) || !this.state.status.connected;
             if (!this.state.showLogin) {
                 await Promise.all([this.loadTaxonomy(), this.search()]);
@@ -153,7 +158,13 @@ export class NexoB2bCatalog extends Component {
         this.search();
     }
 
+    clearMayorista() {
+        this.state.mayorista = null;
+        this.search();
+    }
+
     clearFilters() {
+        this.state.mayorista = null;
         this.state.pasilloId = null;
         this.state.rubroId = null;
         this.state.subrubroId = null;
@@ -172,7 +183,7 @@ export class NexoB2bCatalog extends Component {
 
     get hayFiltros() {
         const s = this.state;
-        return Boolean(s.pasilloId || s.rubroId || s.subrubroId || s.soloConAlta);
+        return Boolean(s.mayorista || s.pasilloId || s.rubroId || s.subrubroId || s.soloConAlta);
     }
 
     get rubros() {
@@ -207,6 +218,7 @@ export class NexoB2bCatalog extends Component {
                     pasillo_id: this.state.pasilloId,
                     rubro_id: this.state.rubroId,
                     subrubro_id: this.state.subrubroId,
+                    mayorista_id: this.state.mayorista?.id || null,
                 },
             ]);
             if (seq !== this.searchSeq) {
@@ -246,19 +258,29 @@ export class NexoB2bCatalog extends Component {
     // Agregar
     // ------------------------------------------------------------------
 
-    async add(producto, mayorista, choices = {}) {
-        this.state.busyKey = `${producto.id}:${mayorista.id}`;
+    /**
+     * «Agregar» (sin `presentacion`) o «Al pedido» (con ella): las dos crean o
+     * actualizan el producto; la segunda además lo suma al borrador de pedido
+     * de compra de ese mayorista.
+     */
+    async add(producto, mayorista, choices = {}, presentacion = null) {
+        this.state.busyKey = this.busyKey(producto, mayorista, presentacion);
         try {
-            const res = await this.orm.call(SERVICE, "add_product", [
-                producto.id,
-                producto.ean,
-                mayorista.id,
-                choices,
-            ]);
+            const res = presentacion
+                ? await this.orm.call(SERVICE, "add_to_order", [
+                      producto.id,
+                      producto.ean,
+                      mayorista.id,
+                      presentacion.id,
+                      1,
+                      choices,
+                  ])
+                : await this.orm.call(SERVICE, "add_product", [producto.id, producto.ean, mayorista.id, choices]);
             if (res.status === "needs_input") {
                 this.state.pending = {
                     producto,
                     mayorista,
+                    presentacion,
                     tax: res.tax,
                     category: res.category,
                     saleTaxId: res.tax?.sale_tax_id ? String(res.tax.sale_tax_id) : "",
@@ -276,6 +298,10 @@ export class NexoB2bCatalog extends Component {
             this.state.pending = null;
             mayorista.agregado = true;
             producto.odoo_product_id = res.product_id;
+            if (res.order_id) {
+                this.notifyOrder(res, mayorista);
+                return;
+            }
             const parts = [res.product_created ? "Producto creado" : "Producto existente actualizado"];
             if (res.vendor_created) {
                 parts.push(`proveedor ${mayorista.nombre} creado`);
@@ -306,7 +332,39 @@ export class NexoB2bCatalog extends Component {
                 categ_id: p.categId ? Number(p.categId) : false,
             };
         }
-        return this.add(p.producto, p.mayorista, choices);
+        return this.add(p.producto, p.mayorista, choices, p.presentacion);
+    }
+
+    notifyOrder(res, mayorista) {
+        const close = this.notification.add(
+            `${res.line_qty} × ${res.unidad} en ${res.order_name}` +
+                (res.order_created ? ` (pedido nuevo a ${mayorista.nombre})` : ""),
+            {
+                type: "success",
+                buttons: [
+                    {
+                        name: "Ver pedido",
+                        primary: true,
+                        onClick: () => {
+                            close();
+                            this.openOrder(res.order_id);
+                        },
+                    },
+                ],
+            }
+        );
+        for (const warning of res.warnings || []) {
+            this.notification.add(warning, { type: "warning", sticky: true });
+        }
+    }
+
+    openOrder(orderId) {
+        this.actionService.doAction({
+            type: "ir.actions.act_window",
+            res_model: "purchase.order",
+            res_id: orderId,
+            views: [[false, "form"]],
+        });
     }
 
     cancelPending() {
@@ -362,8 +420,12 @@ export class NexoB2bCatalog extends Component {
         return mayorista.muestra_precio === "final" ? "precio final" : "neto + IVA";
     }
 
-    isBusy(producto, mayorista) {
-        return this.state.busyKey === `${producto.id}:${mayorista.id}`;
+    busyKey(producto, mayorista, presentacion = null) {
+        return `${producto.id}:${mayorista.id}:${presentacion ? presentacion.id : ""}`;
+    }
+
+    isBusy(producto, mayorista, presentacion = null) {
+        return this.state.busyKey === this.busyKey(producto, mayorista, presentacion);
     }
 }
 

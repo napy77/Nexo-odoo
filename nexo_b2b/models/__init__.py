@@ -6,3 +6,5 @@ from . import nexo_b2b_tax_map
 from . import nexo_b2b_category_map
 from . import nexo_b2b_service
 from . import nexo_log
+from . import purchase_order
+from . import nexo_b2b_order_send

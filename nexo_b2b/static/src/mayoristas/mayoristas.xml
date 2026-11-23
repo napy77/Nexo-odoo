@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="nexo_b2b.Mayoristas">
+        <div class="o_action o_nexo_b2b_catalog o_nexo_b2b_mayoristas h-100 overflow-auto p-3">
+            <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+                <h2 class="mb-0">Mayoristas NexoB2B</h2>
+                <span t-if="this.state.searched and !this.state.loading" class="text-muted">
+                    <t t-out="this.state.mayoristas.length"/> encontrados
+                </span>
+                <span t-if="this.state.status and this.state.status.connected" class="ms-auto text-muted small"
+                      t-out="this.state.status.message"/>
+            </div>
+            <p class="text-muted mb-3">Proveedores de la red NexoB2B. Mirá su catálogo y pedí el alta para comprarles.</p>
+
+            <div t-if="this.state.status and !this.state.status.connected" class="alert alert-info d-flex align-items-center gap-3">
+                <span>Para ver los mayoristas, primero iniciá sesión en NexoB2B.</span>
+                <button class="btn btn-primary btn-sm" t-on-click="() => this.openLogin()">Iniciar sesión</button>
+            </div>
+
+            <t t-elif="this.state.context">
+                <input type="search" class="form-control form-control-lg mb-3" autofocus="autofocus"
+                       placeholder="Buscar por nombre, rubro o ciudad…"
+                       t-model.proxy="this.state.busqueda" t-on-input="this.onBusquedaInput"/>
+
+                <div class="o_nexo_b2b_filters mb-3">
+                    <div class="o_nexo_b2b_chip_row">
+                        <span class="o_nexo_b2b_chip_label">Zona</span>
+                        <t t-if="this.state.context.ubicacion">
+                            <span class="badge text-bg-success">📍 Cerca tuyo</span>
+                            <t t-foreach="this.state.context.radios" t-as="km" t-key="km">
+                                <button class="o_nexo_b2b_chip" t-att-class="{'o_active o_rubro': this.state.radioKm === km}"
+                                        t-on-click="() => this.setRadio(km)" t-out="this.radioText(km)"/>
+                            </t>
+                        </t>
+                        <span t-else="" class="badge text-bg-warning">
+                            ⚠️ El comercio no tiene ubicación en NexoB2B: se muestran todos. Se configura en el perfil del portal.
+                        </span>
+                    </div>
+                    <div t-if="this.rubros.length" class="o_nexo_b2b_chip_row">
+                        <span class="o_nexo_b2b_chip_label">Rubro</span>
+                        <t t-foreach="this.rubros" t-as="rubro" t-key="rubro">
+                            <button class="o_nexo_b2b_chip" t-att-class="{'o_active o_pasillo': this.isRubroActivo(rubro)}"
+                                    t-on-click="() => this.toggleRubro(rubro)">
+                                <t t-out="rubro"/><t t-if="this.isRubroActivo(rubro)"> ✓</t>
+                            </button>
+                        </t>
+                        <button t-if="this.state.rubrosActivos.length" class="btn btn-link btn-sm"
+                                t-on-click="() => this.todosLosRubros()">Todos los rubros</button>
+                        <button t-if="this.state.context.rubros_sugeridos.length and !this.sonMisRubros" class="btn btn-link btn-sm"
+                                t-on-click="() => this.misRubros()">Volver a mis rubros</button>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="o_nexo_b2b_chip_label">Orden</span>
+                        <select class="form-select form-select-sm w-auto" t-on-change="this.setOrden">
+                            <t t-foreach="this.ordenes" t-as="o" t-key="o[0]">
+                                <option t-att-value="o[0]" t-att-selected="this.state.orden === o[0]" t-out="o[1]"/>
+                            </t>
+                        </select>
+                    </div>
+                </div>
+
+                <div t-if="this.state.sinDeSusRubros" class="alert alert-warning">
+                    No encontramos mayoristas de tus rubros en <t t-out="this.radioLabel"/>. Te mostramos todos los de la zona.
+                </div>
+            </t>
+
+            <div t-if="this.state.error" class="alert alert-danger" t-out="this.state.error"/>
+
+            <div t-if="this.state.loading and !this.state.mayoristas.length" class="text-center text-muted py-5">Buscando mayoristas…</div>
+            <div t-elif="this.state.searched and !this.state.mayoristas.length" class="text-center text-muted py-5">
+                <p>Ningún mayorista encontrado en <t t-out="this.radioLabel"/><t t-if="this.state.rubrosActivos.length"> con los rubros elegidos</t>.</p>
+                <button t-if="this.state.context and this.state.context.ubicacion and this.state.radioKm !== 9999"
+                        class="btn btn-link" t-on-click="() => this.ampliarRadio()">Ampliar el radio de búsqueda →</button>
+            </div>
+
+            <div t-else="" class="o_nexo_b2b_mayorista_grid" t-att-class="{'opacity-50': this.state.loading}">
+                <div t-foreach="this.ordenados" t-as="m" t-key="m.id" class="card o_nexo_b2b_mayorista">
+                    <div class="o_nexo_b2b_portada">
+                        <img t-if="m.portada_url" t-att-src="m.portada_url" alt="" loading="lazy"/>
+                        <span t-if="m.distancia_km !== null" class="o_nexo_b2b_distancia">📍 <t t-out="this.distancia(m)"/></span>
+                        <div class="o_nexo_b2b_logo">
+                            <img t-if="m.logo_url" t-att-src="m.logo_url" alt="" loading="lazy"/>
+                            <span t-else="" t-out="this.iniciales(m)"/>
+                        </div>
+                    </div>
+                    <div class="card-body d-flex flex-column pt-5">
+                        <div class="d-flex align-items-start justify-content-between gap-2">
+                            <h5 class="mb-0 o_nexo_b2b_link" t-on-click="() => this.openCatalog(m)" t-out="m.nombre"/>
+                            <span t-if="this.estado(m)" class="badge text-nowrap" t-att-class="this.estado(m).css"
+                                  t-out="this.estado(m).label"/>
+                        </div>
+                        <div class="text-muted small" t-out="this.lugar(m)"/>
+                        <div t-if="m.productos_count" class="text-muted small"><t t-out="m.productos_count"/> productos publicados</div>
+                        <div t-if="m.partner_id" class="small">
+                            <a href="#" t-on-click.prevent="() => this.openPartner(m)">Ya es proveedor en Odoo</a>
+                        </div>
+
+                        <div t-if="m.muestras.length" class="o_nexo_b2b_muestras mt-3" t-on-click="() => this.openCatalog(m)">
+                            <div t-foreach="m.muestras" t-as="f" t-key="f_index" class="o_nexo_b2b_muestra" t-att-title="f.nombre">
+                                <img t-att-src="f.imagen_url" t-att-alt="f.nombre" loading="lazy"/>
+                            </div>
+                        </div>
+                        <p t-elif="m.descripcion" class="text-muted small mt-3 mb-0 o_nexo_b2b_descripcion" t-out="m.descripcion"/>
+
+                        <div t-if="m.estado === 'aceptado' and m.contacto.nombre" class="small mt-2">
+                            <span class="text-muted"><t t-if="m.contacto.es_vendedor">Tu vendedor</t><t t-else="">Contacto</t>: </span>
+                            <t t-out="m.contacto.nombre"/>
+                            <t t-if="m.contacto.celular"> · <t t-out="m.contacto.celular"/></t>
+                            <t t-if="m.contacto.email"> · <t t-out="m.contacto.email"/></t>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-auto pt-3">
+                            <button class="btn btn-secondary flex-fill" t-on-click="() => this.openCatalog(m)">Ver catálogo</button>
+                            <button t-if="!m.estado" class="btn btn-primary flex-fill"
+                                    t-att-disabled="!this.state.context.puede_pedir_alta"
+                                    t-att-title="this.state.context.puede_pedir_alta ? '' : 'Solo un responsable de Compras puede pedir el alta'"
+                                    t-on-click="() => this.askAlta(m)">Pedir alta</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Confirmar el pedido de alta: crea una solicitud real en NexoB2B -->
+            <div t-if="this.state.alta" class="o_nexo_b2b_overlay o_top">
+                <div class="card o_nexo_b2b_modal o_nexo_b2b_alta p-3">
+                    <h5>Pedir el alta a «<t t-out="this.state.alta.mayorista.nombre"/>»</h5>
+                    <p class="mb-2">
+                        Le llega a <t t-out="this.state.alta.mayorista.nombre"/> una solicitud de
+                        <b t-out="this.state.status.comercio"/> en NexoB2B. Cuando la acepte, vas a poder comprarle con
+                        tus precios. Una vez enviada no se puede deshacer ni repetir.
+                    </p>
+                    <label class="form-label small mb-0">Mensaje para el mayorista (opcional)</label>
+                    <textarea class="form-control mb-3" rows="3" maxlength="1000"
+                              placeholder="Por ejemplo: somos un almacén de barrio, compramos todas las semanas…"
+                              t-model.proxy="this.state.alta.mensaje"/>
+                    <div>
+                        <button class="btn btn-primary me-2" t-att-disabled="this.state.alta.busy" t-on-click="() => this.confirmAlta()">
+                            <t t-if="this.state.alta.busy">Enviando…</t><t t-else="">Enviar solicitud</t>
+                        </button>
+                        <button class="btn btn-secondary" t-att-disabled="this.state.alta.busy" t-on-click="() => this.cancelAlta()">Cancelar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+
+</templates>

@@ -4,8 +4,8 @@ import base64
 import copy
 from unittest.mock import patch
 
-from odoo.exceptions import ValidationError
-from odoo.tests import TransactionCase, tagged
+from odoo.exceptions import AccessError, ValidationError
+from odoo.tests import TransactionCase, new_test_user, tagged
 
 from odoo.addons.nexo_core.lib.client import NexoClient, NexoError
 
@@ -40,12 +40,30 @@ PRODUCTO = {
 }
 
 
+# Como GET /store/mayoristas/lista (apps/backend/src/api/store/mayoristas/lista/route.ts).
+MAYORISTA_1 = {
+    'id': 'may_1', 'nombre': 'Mayorista Test', 'email': 'ventas@may1.test', 'telefono': '351000',
+    'ciudad': 'Córdoba', 'provincia': 'Córdoba', 'rubros': ['Alimentos y bebidas'], 'descripcion': 'Distribuidora',
+    'logo_url': '/uploads/logos/may_1.png', 'portada_url': None, 'distancia_km': 3.2, 'productos_count': 120,
+    'muestras': [{'nombre': 'Vino', 'imagen_url': '/uploads/fotos/pm_1.jpg'}],
+    'contacto': {'nombre': 'Mayorista Test', 'celular': '351000', 'email': 'ventas@may1.test', 'es_vendedor': False},
+}
+MAYORISTA_2 = {
+    'id': 'may_2', 'nombre': 'Electro Sur', 'ciudad': 'Rosario', 'provincia': 'Santa Fe', 'rubros': ['Electrónica'],
+    'distancia_km': None, 'productos_count': 40, 'muestras': [],
+    'contacto': {'nombre': 'Ana Vendedora', 'celular': '341000', 'email': 'ana@sur.test', 'es_vendedor': True},
+}
+
+
 class FakeNexoB2B:
     """Responde como NexoB2B según el método y la ruta."""
 
     def __init__(self):
         self.producto = copy.deepcopy(PRODUCTO)
         self.calls = []
+        self.bodies = []
+        # mayorista_id → estado de la solicitud de este comercio.
+        self.solicitudes = {'may_2': 'aceptado'}
 
     def __call__(self, client, method, path, params=None, json_body=None, auth=True):
         self.calls.append((method, path, params, auth))
@@ -59,7 +77,29 @@ class FakeNexoB2B:
                 usuario = {'nombre': 'Compras', 'permisos': ['comprar']}
             return {'token': TOKEN, 'comercio': {'id': 'com_1', 'nombre': 'Comercio Test'}, 'usuario': usuario}
         if path == '/store/comercios/me':
-            return {'comercio': {'id': 'com_1', 'nombre': 'Comercio Test'}, 'usuario': None}
+            return {'comercio': {'id': 'com_1', 'nombre': 'Comercio Test', 'lat': -31.4, 'lng': -64.2,
+                                 'rubros': ['Almacén']}, 'usuario': None}
+        if path == '/store/tipos-comercio':
+            return {'tipos': ['Almacén', 'Kiosco'], 'equivalencias': {
+                'Almacén': ['Alimentos y bebidas', 'Limpieza y hogar'], 'Kiosco': ['Alimentos y bebidas', 'Otros']}}
+        if path == '/store/mayoristas/lista':
+            mayoristas = [MAYORISTA_1, MAYORISTA_2]
+            rubros = (params or {}).get('rubros') or []
+            if rubros:
+                mayoristas = [m for m in mayoristas if set(m['rubros']) & set(rubros)]
+            result = []
+            for m in mayoristas:
+                m = copy.deepcopy(m)
+                estado = self.solicitudes.get(m['id'])
+                m['solicitud'] = {'id': 'sol_' + m['id'], 'estado': estado, 'mayorista_id': m['id']} if estado else None
+                result.append(m)
+            return {'mayoristas': result, 'meta': {'total': len(result)}}
+        if path == '/store/solicitudes' and method == 'POST':
+            self.bodies.append(json_body)
+            if json_body['mayorista_id'] in self.solicitudes:
+                raise NexoError('client', message='Ya existe una solicitud con este mayorista', status=409)
+            self.solicitudes[json_body['mayorista_id']] = 'pendiente'
+            return {'solicitud': {'id': 'sol_new', 'estado': 'pendiente', 'mayorista_id': json_body['mayorista_id']}}
         if path == '/store/taxonomia':
             return {
                 'pasillos': [{'id': 'pas_1', 'nombre': 'Bebidas'}],
@@ -163,6 +203,71 @@ class TestNexoB2bCatalog(TransactionCase):
         self.assertTrue(res['ok'])
         self.assertEqual(res['rubros'], [{'id': 'rub_1', 'nombre': 'Vinos', 'pasillo_id': 'pas_1'}])
         self.assertEqual(res['subrubros'][0]['rubro_id'], 'rub_1')
+
+    # -- Mayoristas ---------------------------------------------------
+
+    def test_mayoristas_context(self):
+        self.assertFalse(self.service.get_mayoristas_context()['ok'])
+        self._login()
+        res = self.service.get_mayoristas_context()
+        self.assertTrue(res['ok'])
+        self.assertEqual(res['ubicacion'], {'lat': -31.4, 'lng': -64.2})
+        # Los rubros de mayorista a los que le compra un «Almacén», como el portal.
+        self.assertEqual(res['rubros_sugeridos'], ['Alimentos y bebidas', 'Limpieza y hogar'])
+        self.assertEqual(res['rubros'], ['Alimentos y bebidas', 'Limpieza y hogar', 'Otros'])
+        self.assertTrue(res['puede_pedir_alta'])
+
+    def test_search_mayoristas(self):
+        self._login()
+        partner = self.env['res.partner'].create({'name': 'Mayorista Test', 'nexo_mayorista_id': 'may_1'})
+        res = self.service.search_mayoristas(' sur ', 100, ['Alimentos y bebidas'], {'lat': -31.4, 'lng': -64.2})
+        self.assertTrue(res['ok'])
+        method, path, params, auth = self.fake.calls[-1]
+        self.assertEqual((method, path, auth), ('GET', '/store/mayoristas/lista', True))
+        self.assertEqual(params, {'radio_km': 100, 'lat': -31.4, 'lng': -64.2, 'busqueda': 'sur',
+                                  'rubros': ['Alimentos y bebidas']})
+        self.assertFalse(res['sin_de_sus_rubros'])
+        self.assertEqual(len(res['mayoristas']), 1)
+        m = res['mayoristas'][0]
+        self.assertEqual(m['logo_url'], 'https://api.nexob2b.test/uploads/logos/may_1.png')
+        self.assertEqual(m['muestras'][0]['imagen_url'], 'https://api.nexob2b.test/uploads/fotos/pm_1.jpg')
+        self.assertIsNone(m['estado'])
+        self.assertEqual(m['partner_id'], partner.id)
+
+    def test_search_mayoristas_falls_back_to_all(self):
+        # Con sus rubros no hay nadie: se muestran todos los de la zona, con aviso.
+        self._login()
+        res = self.service.search_mayoristas('', 12345, ['Automotor'])
+        self.assertTrue(res['sin_de_sus_rubros'])
+        self.assertEqual([m['id'] for m in res['mayoristas']], ['may_1', 'may_2'])
+        self.assertEqual(res['mayoristas'][1]['estado'], 'aceptado')
+        # Radio desconocido → 50, y sin ubicación no se mandan coordenadas.
+        self.assertEqual(self.fake.calls[-1][2], {'radio_km': 50})
+
+    def test_request_alta(self):
+        self._login()
+        res = self.service.request_alta('may_1', '  Somos un almacén  ')
+        self.assertEqual(res, {'ok': True, 'estado': 'pendiente'})
+        self.assertEqual(self.fake.bodies[-1], {'mayorista_id': 'may_1', 'mensaje': 'Somos un almacén'})
+        # NexoB2B no deja repetirla (409).
+        again = self.service.request_alta('may_1')
+        self.assertFalse(again['ok'])
+        self.assertIn('Ya hay una solicitud', again['message'])
+        self.assertEqual(self.fake.bodies[-1], {'mayorista_id': 'may_1'})
+
+    def test_request_alta_needs_purchase_manager(self):
+        self._login()
+        user = new_test_user(self.env, login='nexo_compras', groups='purchase.group_purchase_user')
+        service = self.service.with_user(user)
+        self.assertFalse(service.get_mayoristas_context()['puede_pedir_alta'])
+        with self.assertRaises(AccessError):
+            service.request_alta('may_1')
+        self.assertFalse(self.fake.bodies)
+
+    def test_catalog_by_mayorista(self):
+        self._login()
+        self.service.search_catalog('', 1, True, {'mayorista_id': 'may_1'})
+        self.assertEqual(self.fake.calls[-1][2]['mayorista_id'], 'may_1')
 
     # -- Agregar ------------------------------------------------------
 

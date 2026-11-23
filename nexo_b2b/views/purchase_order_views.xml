@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="purchase_order_form_nexo" model="ir.ui.view">
+        <field name="name">purchase.order.form.nexo</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header/field[@name='state']" position="before">
+                <field name="nexo_mayorista_id" invisible="1"/>
+                <field name="nexo_orden_id" invisible="1"/>
+                <field name="nexo_envio_incierto" invisible="1"/>
+                <button name="action_nexo_send" type="object" string="Enviar a NexoB2B" class="btn-primary"
+                        invisible="not nexo_mayorista_id or nexo_orden_id or state not in ('draft', 'sent')"
+                        groups="purchase.group_purchase_user"/>
+                <button name="action_nexo_sync" type="object" string="Actualizar estado NexoB2B"
+                        invisible="not nexo_orden_id and not nexo_envio_incierto"
+                        groups="purchase.group_purchase_user"/>
+            </xpath>
+            <xpath expr="//header" position="after">
+                <div class="alert alert-info mb-0 d-flex flex-wrap gap-2" role="status" invisible="not nexo_orden_id">
+                    <span>NexoB2B <b><field name="nexo_numero" class="d-inline"/></b>:</span>
+                    <field name="nexo_estado" widget="badge" class="d-inline"
+                           decoration-success="nexo_estado in ('confirmado', 'armando', 'listo', 'en_transporte', 'entregado')"
+                           decoration-warning="nexo_estado in ('cargada', 'devuelto')"
+                           decoration-danger="nexo_estado == 'cancelado'"/>
+                    <span invisible="not nexo_guia">· guía <field name="nexo_guia" class="d-inline"/></span>
+                    <span invisible="not nexo_mensaje">· «<field name="nexo_mensaje" class="d-inline"/>»</span>
+                </div>
+                <div class="alert alert-warning mb-0" role="alert" invisible="not nexo_envio_incierto">
+                    El último envío a NexoB2B no tuvo respuesta. Tocá «Actualizar estado NexoB2B» para ver si llegó
+                    antes de enviarlo de nuevo.
+                </div>
+            </xpath>
+            <xpath expr="//field[@name='order_line']/list/field[@name='product_qty']" position="after">
+                <field name="nexo_seller_id" optional="show" column_invisible="not parent.nexo_mayorista_id"
+                       options="{'no_create': True, 'no_open': True}" readonly="parent.nexo_orden_id"
+                       context="{'nexo_presentacion_label': True, 'use_simplified_supplier_name': True}"/>
+            </xpath>
+            <xpath expr="//page[@name='purchase_delivery_invoice']" position="after">
+                <page string="NexoB2B" name="nexo_b2b" invisible="not nexo_orden_id">
+                    <group>
+                        <group string="Pedido">
+                            <field name="nexo_numero"/>
+                            <field name="nexo_estado"/>
+                            <field name="nexo_sent_at"/>
+                            <field name="nexo_sync_at"/>
+                            <field name="nexo_medio_pago"/>
+                            <field name="nexo_transporte"/>
+                        </group>
+                        <group string="Importes según NexoB2B">
+                            <field name="nexo_recargos"/>
+                            <field name="nexo_descuento"/>
+                            <field name="nexo_total"/>
+                            <field name="nexo_pagada"/>
+                            <field name="nexo_facturada"/>
+                        </group>
+                        <group string="Despacho">
+                            <field name="nexo_bultos"/>
+                            <field name="nexo_peso_kg"/>
+                            <field name="nexo_guia"/>
+                            <field name="nexo_mensaje"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="purchase_order_list_nexo" model="ir.ui.view">
+        <field name="name">purchase.order.list.nexo</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_view_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="nexo_estado" optional="show" widget="badge"
+                       decoration-success="nexo_estado in ('confirmado', 'armando', 'listo', 'en_transporte', 'entregado')"
+                       decoration-warning="nexo_estado in ('cargada', 'devuelto')"
+                       decoration-danger="nexo_estado == 'cancelado'"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="nexo_b2b_order_send_view_form" model="ir.ui.view">
+        <field name="name">nexo.b2b.order.send.form</field>
+        <field name="model">nexo.b2b.order.send</field>
+        <field name="arch" type="xml">
+            <form>
+                <div class="alert alert-warning" role="alert">
+                    Esto le manda un <b>pedido real</b> a <b><field name="partner_name" class="d-inline"/></b> en NexoB2B.
+                    Los precios se acaban de releer de NexoB2B con tu lista de precios.
+                </div>
+                <div class="alert alert-info" role="status" invisible="not precio_cambios">
+                    <b>Cambiaron precios desde que armaste el pedido:</b>
+                    <field name="precio_cambios" class="d-block" style="white-space: pre-line"/>
+                </div>
+                <div class="alert alert-danger" role="alert" invisible="not precio_avisos">
+                    <field name="precio_avisos" class="d-block" style="white-space: pre-line"/>
+                </div>
+                <group>
+                    <field name="line_count" string="Líneas"/>
+                    <field name="currency_id" invisible="1"/>
+                    <field name="amount_untaxed" string="Subtotal sin IVA"/>
+                    <field name="option_ids" invisible="1"/>
+                    <field name="has_medios_pago" invisible="1"/>
+                    <field name="has_transportes" invisible="1"/>
+                    <field name="medio_pago_id" options="{'no_create': True, 'no_open': True}" invisible="not has_medios_pago"/>
+                    <field name="transporte_id" options="{'no_create': True, 'no_open': True}" invisible="not has_transportes"/>
+                    <field name="notas" placeholder="Horario de entrega, aclaraciones…"/>
+                </group>
+                <footer>
+                    <button name="action_send" type="object" string="Enviar pedido" class="btn-primary" data-hotkey="q"/>
+                    <button special="cancel" string="Cancelar" data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="ir_cron_nexo_b2b_sync_orders" model="ir.cron">
+        <field name="name">NexoB2B: actualizar estado de los pedidos</field>
+        <field name="model_id" ref="purchase.model_purchase_order"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_nexo_sync()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">5</field>
+        <field name="interval_type">minutes</field>
+    </record>
+</odoo>

@@ -5,6 +5,8 @@ Contrato verificado contra el código de NexoB2B (apps/backend/src/api/store):
 - POST /store/comercios/auth → {token, comercio, usuario}
 - GET  /store/comercios/me   → valida el token
 - GET  /store/productos      → q, page, pageSize (máx. 100), con_stock=1, mayorista_id
+- GET  /store/mayoristas/lista → lat, lng, radio_km, rubros (repetido), busqueda
+- POST /store/solicitudes    → {mayorista_id, mensaje}; 409 si ya hay una
 """
 import logging
 from urllib.parse import urljoin
@@ -20,6 +22,8 @@ from odoo.addons.nexo_core.lib.client import NexoClient, NexoError
 _logger = logging.getLogger(__name__)
 
 SERVICE = 'nexob2b'
+# Radios del portal («Todo el país» es 9999).
+RADIOS_KM = (25, 50, 100, 200, 9999)
 # Igual que el portal del comercio en NexoB2B.
 PAGE_SIZE = 50
 TAXONOMY_FILTERS = ('pasillo_id', 'rubro_id', 'subrubro_id')
@@ -192,7 +196,7 @@ class NexoB2bService(models.AbstractModel):
             params['q'] = query.strip()
         if con_stock:
             params['con_stock'] = '1'
-        for key in TAXONOMY_FILTERS:
+        for key in TAXONOMY_FILTERS + ('mayorista_id',):
             if filters.get(key):
                 params[key] = filters[key]
         # Con el comercio, NexoB2B filtra por zona y dice si hay alta con cada
@@ -212,6 +216,128 @@ class NexoB2bService(models.AbstractModel):
             'totalPages': data.get('totalPages', 1),
             'productos': [self._for_display(p) for p in productos],
         }
+
+    # ------------------------------------------------------------------
+    # Mayoristas
+    # ------------------------------------------------------------------
+
+    @api.model
+    def get_mayoristas_context(self):
+        """Ubicación del comercio y rubros sugeridos para su tipo, como «Descubrí
+        mayoristas» en el portal (storefront/…/comercio/mayoristas/page.tsx)."""
+        self._check_user()
+        try:
+            me = self._call('GET', '/store/comercios/me')
+        except NexoError as e:
+            return {'ok': False, 'kind': e.kind, 'message': e.user_message()}
+        comercio = me.get('comercio') or {}
+        equivalencias = {}
+        try:
+            data = self._call('GET', '/store/tipos-comercio', auth=False)
+            equivalencias = data.get('equivalencias') or {}
+        except NexoError as e:
+            _logger.info("No se pudieron leer los tipos de comercio de NexoB2B: %s", e.kind)
+        por_tipo = {str(k).strip().lower(): v or [] for k, v in equivalencias.items()}
+        sugeridos = []
+        for tipo in comercio.get('rubros') or []:
+            for rubro in por_tipo.get(str(tipo).strip().lower(), []):
+                if rubro not in sugeridos:
+                    sugeridos.append(rubro)
+        lat, lng = comercio.get('lat'), comercio.get('lng')
+        return {
+            'ok': True,
+            'ubicacion': {'lat': lat, 'lng': lng} if lat and lng else None,
+            'rubros_sugeridos': sugeridos,
+            'rubros': sorted({r for v in por_tipo.values() for r in v}),
+            'radios': list(RADIOS_KM),
+            'puede_pedir_alta': self._can_request_alta(),
+        }
+
+    @api.model
+    def search_mayoristas(self, busqueda='', radio_km=50, rubros=None, ubicacion=None):
+        """Mayoristas aprobados con el estado del alta de este comercio. Si con
+        sus rubros no hay ninguno, muestra todos los de la zona, como el portal."""
+        self._check_user()
+        params = {'radio_km': radio_km if radio_km in RADIOS_KM else 50}
+        if ubicacion and ubicacion.get('lat') is not None and ubicacion.get('lng') is not None:
+            params['lat'] = ubicacion['lat']
+            params['lng'] = ubicacion['lng']
+        if busqueda and busqueda.strip():
+            params['busqueda'] = busqueda.strip()
+        rubros = [r for r in rubros or [] if r]
+        sin_de_sus_rubros = False
+        try:
+            # requests repite la clave: rubros=a&rubros=b, igual que el portal.
+            data = self._call('GET', '/store/mayoristas/lista', params={**params, 'rubros': rubros} if rubros else params)
+            if rubros and not data.get('mayoristas'):
+                todos = self._call('GET', '/store/mayoristas/lista', params=params)
+                if todos.get('mayoristas'):
+                    data, sin_de_sus_rubros = todos, True
+        except NexoError as e:
+            return {'ok': False, 'kind': e.kind, 'message': e.user_message()}
+        mayoristas = data.get('mayoristas') or []
+        partners = self.env['res.partner'].with_context(active_test=False).search(
+            [('nexo_mayorista_id', 'in', [m.get('id') for m in mayoristas if m.get('id')])])
+        partner_by_id = {p.nexo_mayorista_id: p.id for p in partners}
+        return {
+            'ok': True,
+            'sin_de_sus_rubros': sin_de_sus_rubros,
+            'mayoristas': [self._mayorista_for_display(m, partner_by_id) for m in mayoristas],
+        }
+
+    @api.model
+    def _mayorista_for_display(self, m, partner_by_id):
+        solicitud = m.get('solicitud') or {}
+        contacto = m.get('contacto') or {}
+        return {
+            'id': m.get('id'),
+            'nombre': m.get('nombre'),
+            'ciudad': m.get('ciudad'),
+            'provincia': m.get('provincia'),
+            'rubros': m.get('rubros') or [],
+            'descripcion': m.get('descripcion'),
+            'distancia_km': m.get('distancia_km'),
+            'productos_count': m.get('productos_count') or 0,
+            'logo_url': self._image_url(m.get('logo_url')),
+            'portada_url': self._image_url(m.get('portada_url')),
+            'muestras': [{'nombre': f.get('nombre'), 'imagen_url': self._image_url(f.get('imagen_url'))}
+                         for f in m.get('muestras') or []],
+            # pendiente / aceptado / rechazado (modules/solicitud de NexoB2B); None sin solicitud.
+            'estado': solicitud.get('estado'),
+            'contacto': {
+                'nombre': contacto.get('nombre'),
+                'celular': contacto.get('celular'),
+                'email': contacto.get('email'),
+                'es_vendedor': bool(contacto.get('es_vendedor')),
+            },
+            'partner_id': partner_by_id.get(m.get('id')),
+        }
+
+    @api.model
+    def _can_request_alta(self):
+        # Pedir el alta abre una relación comercial: lo decide un responsable de Compras.
+        return self.env.user.has_group('purchase.group_purchase_manager')
+
+    @api.model
+    def request_alta(self, mayorista_id, mensaje=None):
+        """Pide el alta con un mayorista. Crea una solicitud real en NexoB2B, que
+        el mayorista acepta o rechaza; no se puede repetir (NexoB2B devuelve 409)."""
+        self._check_user()
+        if not self._can_request_alta():
+            raise AccessError(_("Solo un responsable de Compras puede pedir el alta con un mayorista."))
+        if not mayorista_id:
+            raise UserError(_("Falta el mayorista."))
+        body = {'mayorista_id': mayorista_id}
+        if mensaje and mensaje.strip():
+            body['mensaje'] = mensaje.strip()[:1000]
+        try:
+            data = self._call('POST', '/store/solicitudes', json_body=body)
+        except NexoError as e:
+            if e.status == 409:
+                return {'ok': False, 'message': _("Ya hay una solicitud con este mayorista.")}
+            return {'ok': False, 'kind': e.kind, 'message': e.user_message()}
+        solicitud = data.get('solicitud') or {}
+        return {'ok': True, 'estado': solicitud.get('estado') or 'pendiente'}
 
     @api.model
     def _for_display(self, producto):
@@ -468,6 +594,52 @@ class NexoB2bService(models.AbstractModel):
             'lines_updated': lines_updated,
             'warnings': warnings,
         }
+
+    @api.model
+    def add_to_order(self, producto_id, ean, mayorista_id, presentacion_id, cantidad=1, choices=None):
+        """«Al pedido»: agrega (o actualiza) el producto como «Agregar» y suma la
+        presentación al borrador de pedido de compra de ese mayorista. No le
+        manda nada a NexoB2B: eso es «Enviar a NexoB2B» en el pedido."""
+        res = self.add_product(producto_id, ean, mayorista_id, choices)
+        if res.get('status') != 'ok':
+            return res
+        cantidad = int(cantidad or 1)
+        if cantidad < 1:
+            raise UserError(_("La cantidad tiene que ser al menos 1."))
+        template = self.env['product.template'].browse(res['product_id'])
+        seller = template.seller_ids.filtered(
+            lambda s: s.partner_id.nexo_mayorista_id == mayorista_id and s.nexo_presentacion_id == presentacion_id)[:1]
+        if not seller:
+            return {'status': 'error', 'message': _("Esa presentación ya no la ofrece este mayorista.")}
+        PurchaseOrder = self.env['purchase.order']
+        order = PurchaseOrder.search([
+            ('partner_id', '=', seller.partner_id.id), ('state', '=', 'draft'),
+            ('nexo_orden_id', '=', False), ('nexo_envio_incierto', '=', False),
+            ('company_id', '=', self.env.company.id), ('user_id', 'in', (self.env.user.id, False)),
+        ], order='id desc', limit=1)
+        order_created = not order
+        if not order:
+            order = PurchaseOrder.create({'partner_id': seller.partner_id.id, 'user_id': self.env.user.id})
+        product = template.product_variant_id
+        line = order.order_line.filtered(lambda l: l.product_id == product and l._nexo_seller() == seller)[:1]
+        if line:
+            line.product_qty += cantidad
+        else:
+            line = self.env['purchase.order.line'].create({
+                'order_id': order.id, 'product_id': product.id, 'uom_id': seller.uom_id.id, 'product_qty': cantidad,
+                'nexo_seller_id': seller.id,
+            })
+            # El precio de la presentación tal cual (DEC-004/005); NexoB2B lo
+            # confirma al enviar.
+            line.price_unit = seller.price
+        res.update({
+            'order_id': order.id,
+            'order_name': order.name,
+            'order_created': order_created,
+            'line_qty': line.product_qty,
+            'unidad': seller.nexo_presentacion_nombre or seller.uom_id.name,
+        })
+        return res
 
     @api.model
     def _sync_presentations(self, template, partner, mayorista, warnings):

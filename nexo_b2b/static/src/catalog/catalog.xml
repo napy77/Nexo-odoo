@@ -58,6 +58,13 @@
                        t-model.proxy="this.state.query" t-on-input="this.onQueryInput"/>
 
                 <div class="o_nexo_b2b_filters mb-3">
+                    <div t-if="this.state.mayorista" class="o_nexo_b2b_chip_row">
+                        <span class="o_nexo_b2b_chip_label">Mayorista</span>
+                        <button class="o_nexo_b2b_chip o_active o_dark" title="Quitar el filtro"
+                                t-on-click="() => this.clearMayorista()">
+                            <t t-out="this.state.mayorista.nombre"/> ✕
+                        </button>
+                    </div>
                     <div t-if="this.state.taxonomy.pasillos.length" class="o_nexo_b2b_chip_row">
                         <span class="o_nexo_b2b_chip_label">Pasillo</span>
                         <t t-foreach="this.state.taxonomy.pasillos" t-as="t" t-key="t.id">
@@ -268,6 +275,13 @@
                                 <b t-out="this.formatPrice(pr.precio_mostrar)"/>
                                 <span class="text-muted"> <t t-out="this.priceLabel(mayorista)"/></span>
                                 · stock <t t-out="pr.stock === null or pr.stock === undefined ? '—' : pr.stock"/>
+                                <button t-if="mayorista.tiene_alta === true" class="btn btn-link btn-sm py-0"
+                                        title="Sumar una al borrador de pedido de compra de este mayorista"
+                                        t-att-disabled="this.isBusy(producto, mayorista, pr)"
+                                        t-on-click="() => this.add(producto, mayorista, {}, pr)">
+                                    <t t-if="this.isBusy(producto, mayorista, pr)">Sumando…</t>
+                                    <t t-else="">+ Al pedido</t>
+                                </button>
                             </div>
                         </td>
                         <td class="text-end text-nowrap">

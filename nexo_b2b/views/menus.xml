@@ -6,6 +6,12 @@
               action="nexo_b2b_catalog_action"
               groups="purchase.group_purchase_user"
               sequence="50"/>
+    <menuitem id="menu_nexo_b2b_mayoristas"
+              name="Mayoristas NexoB2B"
+              parent="purchase.menu_procurement_management"
+              action="nexo_b2b_mayoristas_action"
+              groups="purchase.group_purchase_user"
+              sequence="51"/>
 
     <menuitem id="menu_nexo_b2b_config"
               name="NexoB2B"

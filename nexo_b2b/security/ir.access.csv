@@ -4,3 +4,5 @@ access_nexo_b2b_tax_map_manager,nexo.b2b.tax.map administradores,nexo.b2b.tax.ma
 access_nexo_b2b_tax_map_company,nexo.b2b.tax.map multi-compañía,nexo.b2b.tax.map,,crud,"[('company_id', 'in', company_ids)]"
 access_nexo_b2b_category_map_user,nexo.b2b.category.map compras,nexo.b2b.category.map,purchase.group_purchase_user,r,
 access_nexo_b2b_category_map_manager,nexo.b2b.category.map administradores,nexo.b2b.category.map,purchase.group_purchase_manager,crud,
+access_nexo_b2b_order_send_user,nexo.b2b.order.send compras,nexo.b2b.order.send,purchase.group_purchase_user,crud,
+access_nexo_b2b_order_option_user,nexo.b2b.order.option compras,nexo.b2b.order.option,purchase.group_purchase_user,crud,
