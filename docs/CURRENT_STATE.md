@@ -12,7 +12,7 @@ Actualizado al 23/11/2026 (noche). Se lee al empezar cada tarea y se actualiza a
 | «Agregar» contra la API real | IMPLEMENTADO: probado por German el 23/11/2026 con «Accesorios Lona Pelopincho 1130» (Rivera Hogar) |
 | Compras vía NexoB2B (pedido de compra → orden, estado y avisos) | PARCIAL: envío real y confirmación probados (ORD-00055); faltan armado, transporte, entrega y recepción |
 | `nexo_pos`: precios y stock de Odoo en NexoPOS (base de NexoTienda) | PARCIAL: 14 tests; lectura e importación probadas con Jure; escritura sin probar |
-| Pedidos de NexoTienda en la caja de Odoo (`nexo_tienda`) | PARCIAL: 14 tests con NexoPOS simulado y pantallas vistas; sin probar contra NexoPOS real, que todavía no desplegó `/pedidos` |
+| Pedidos de NexoTienda en la caja de Odoo (`nexo_tienda`) | PARCIAL: tests con NexoPOS simulado; **lectura probada contra NexoPOS real** (P-0962559F de Jure); los pasos (aceptar, listo, entregado, cancelar) sin probar contra NexoPOS real |
 | Acceso al Odoo 20 de Linware | IMPLEMENTADO (SSH con llave, lectura sin `sudo`) |
 | Base de prueba en Odoo 20 | PENDIENTE DE VALIDAR (todavía no existe) |
 | Acceso a la API de NexoB2B | IMPLEMENTADO: host `https://nexob2b.app`; la clave y el usuario los carga German en Ajustes de la base de prueba |
@@ -79,7 +79,14 @@ Actualizado al 23/11/2026 (noche). Se lee al empezar cada tarea y se actualiza a
 - Ventas del Punto de Venta de Odoo: `point_of_sale` no está instalado. El enganche está en `stock.move._action_done`, así que debería tomarlas, pero no se probó.
 
 ## Pedidos de NexoTienda (`nexo_tienda`, 23/11/2026 noche)
-NexoPOS hizo lo pedido (commit `cd15a2c`, respuesta en `nexo-pos/docs/RESPUESTA-PEDIDOS-ERP-A-NEXO-ODOO.md`), **pero no está desplegado**: hasta el deploy, `/api/erp/v1/pedidos` da 404. Decisiones en DEC-021.
+NexoPOS hizo lo pedido (commit `cd15a2c`, respuesta en `nexo-pos/docs/RESPUESTA-PEDIDOS-ERP-A-NEXO-ODOO.md`) y ya está desplegado en nexopos.app. Decisiones en DEC-021.
+
+**Probado contra NexoPOS real, solo lectura** (23/11/2026 noche, base de prueba, clave de Jure Hnos SRL):
+- «Traer pedidos ahora» trajo **P-0962559F** (el pedido de German del chocolate): German Yovan, teléfono, libreta CLI-2, retiro en el local, paga al retirar.
+- La línea se vinculó sola con «Tableta Chocolate Extra Fino Aguila x 150 Grs», por el `producto_id` de NexoPOS.
+- El pedido de venta S00037 quedó en borrador: $4.132,23 + IVA 21 % = **$5.000, igual que NexoPOS**. Sin avisos ni actividades.
+- El cursor quedó guardado con microsegundos, tal cual lo mandó NexoPOS.
+- Se encontró y corrigió un error: «Traer pedidos ahora» desde la lista daba un error del servidor, porque el botón de la cabecera llega con registros y el método era `@api.model`. Es el mismo error que tuvo «Comparar ahora». Ahora hay un test que lo llama como el botón.
 
 **IMPLEMENTADO, con tests contra NexoPOS simulado** (`nexo_tienda/tests/test_nexo_tienda.py`, 12 casos):
 - **Interruptor** «Atender los pedidos de NexoTienda en Odoo» en Ajustes → NexoPOS, por compañía y **apagado**.
@@ -96,7 +103,7 @@ NexoPOS hizo lo pedido (commit `cd15a2c`, respuesta en `nexo-pos/docs/RESPUESTA-
 **Visto en el navegador** (base de prueba, con dos pedidos de demo, P-DEMO0001 y P-DEMO0002, creados con `_upsert` sin llamar a NexoPOS): la lista, la ficha con la revisión y el producto sin vincular, la ventana «Aceptar» (cerrada sin aceptar), el aviso en el pedido de venta S00012 (total $500 igual a NexoPOS) y el interruptor en Ajustes.
 
 **Sin probar:**
-- Contra NexoPOS real: espera el deploy. Plan en `docs/PARA-NEXOPOS_de-NEXO-ODOO_pedidos-de-tienda-para-erp.md`.
+- Los pasos contra NexoPOS real (aceptar, listo, entregado, cancelar): escriben en Jure, así que los hace German (DEC-017). Plan en `docs/PARA-NEXOPOS_de-NEXO-ODOO_pedidos-de-tienda-para-erp.md`.
 - **Cobrar en el Punto de Venta** («Cobrar un pedido»): no hay test. Lo que no se manda a NexoPOS en la entrega de la caja se calcula con las líneas que vienen de un pedido de tienda. Con «mover el stock al cerrar la sesión», toma los pedidos de la sesión. PENDIENTE DE VALIDAR.
 - **Cómo entra a la contabilidad un pago de Mercado Pago o a la libreta.** PENDIENTE DE VALIDAR con German.
 
