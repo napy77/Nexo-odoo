@@ -45,8 +45,13 @@ Origen: brief de nexo-ecosystem (30/10/2026) y respuesta con las decisiones de G
 - El producto de Odoo se maneja en **unidades**. La presentación del mayorista existe solo en la compra.
 - En este desafío, la línea de proveedor guarda la presentación completa: `presentacion_id`, id de la presentación del mayorista, `factor`, nombre, precio de la presentación y `ean_propio` si lo tiene.
 - Los packs de venta al consumidor (por ejemplo, x6) son combos de N unidades, no un concepto aparte.
-- **PROPUESTO, pendiente de leer Odoo 20:** usar el mecanismo nativo de Odoo (unidad de compra o `product.packaging`) en lugar de simularlo con `min_qty`. Se decide con German después de inspeccionar el código real.
-- La conversión de caja a unidades al recibir la mercadería corresponde al desafío 3.
+- **Mecanismo nativo de Odoo 20 (aprobado por German el 23/11/2026).** En Odoo 20 no existen `product.packaging` ni `uom_po_id`: los empaques son unidades `uom.uom` con `relative_uom_id` y `relative_factor`. Cómo se arma:
+  - El producto queda en Unidades (`uom.product_uom_unit`).
+  - Cada presentación con `factor` > 1 se representa con una unidad «x<factor> Unidades», relativa a Unidades. Se busca por (referencia, factor), solo se crea si no existe, y se comparte entre productos. El nombre es genérico para que «Caja x12» y «Pack x12» no terminen como dos unidades distintas con el mismo factor. El nombre comercial de NexoB2B queda en la línea de proveedor.
+  - La línea de proveedor (`product.supplierinfo`) lleva `uom_id` = esa unidad, `price` = `precio` de NexoB2B **tal cual** (el de la presentación), `min_qty` = 1 (o `cantidad_minima` cuando NexoB2B la exponga) y `product_code` = SKU (vacío hasta entonces).
+  - Si la presentación trae `ean_propio`, se guarda en `product.uom` (producto + unidad + código de barras).
+  - Requiere activar el grupo `uom.group_uom` («Units of Measure & Packagings») en la base.
+- **Motivo:** el precio no se recalcula y no hay riesgo de ×12 o ÷12. Al recibir la compra, Odoo convierte solo de cajas a unidades, así que en el desafío 3 no hace falta código propio para eso.
 - Candidata a regla de todo el ecosistema (la oficializa nexo-ecosystem).
 
 ## DEC-009 — Marca en un campo propio `nexo_marca`
