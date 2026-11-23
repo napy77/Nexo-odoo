@@ -7,9 +7,9 @@ Actualizado al 23/11/2026 (tarde). Se lee al empezar cada tarea y se actualiza a
 |---|---|
 | `nexo_core`: cliente HTTP, errores, sesión (token), registro y diagnóstico | PARCIAL: instalado y con tests pasando en una base de prueba; sin API real |
 | `nexo_b2b`: Ajustes, login, catálogo (OWL), «Agregar», mapeos | PARCIAL: instalado y con tests pasando en una base de prueba; pantallas vistas en el navegador; sin API real |
-| Tests con respuestas simuladas (`nexo_core/tests`, `nexo_b2b/tests`) | IMPLEMENTADO: **20 tests, 0 fallas** (23/11/2026, base `nexo_test_ci`) |
+| Tests con respuestas simuladas (`nexo_core/tests`, `nexo_b2b/tests`) | IMPLEMENTADO: **23 tests, 0 fallas** (23/11/2026, base `nexo_test_ci`) |
 | Login y búsqueda contra la API real de NexoB2B (`https://nexob2b.app`) | IMPLEMENTADO: probado por German con Jure Hnos SRL (dueño), 3879 productos |
-| «Agregar» contra la API real | PENDIENTE DE VALIDAR |
+| «Agregar» contra la API real | IMPLEMENTADO: probado por German el 23/11/2026 con «Accesorios Lona Pelopincho 1130» (Rivera Hogar) |
 | Acceso al Odoo 20 de Linware | IMPLEMENTADO (SSH con llave, lectura sin `sudo`) |
 | Base de prueba en Odoo 20 | PENDIENTE DE VALIDAR (todavía no existe) |
 | Acceso a la API de NexoB2B | IMPLEMENTADO: host `https://nexob2b.app`; la clave y el usuario los carga German en Ajustes de la base de prueba |
@@ -32,7 +32,12 @@ Actualizado al 23/11/2026 (tarde). Se lee al empezar cada tarea y se actualiza a
   - Sin errores en la consola.
 
 **No se probó:**
-- **«Agregar»** con un producto real, y el panel que pregunta alícuota y categoría.
+- **«Agregar» con la API real** (German, 23/11/2026, «Accesorios Lona Pelopincho 1130», mayorista Rivera Hogar). En la base quedó:
+  - El producto con `barcode` igual al EAN, marca PELOPINCHO, foto y categoría `NexoB2B / Piletas / Accesorios Piletas`, creada en el momento.
+  - El proveedor «Rivera Hogar» con su `nexo_mayorista_id`.
+  - Una línea de proveedor: presentación «1», factor 1, unidad Units y precio 69.929,30. Es el precio sin IVA: el portal muestra 84.614 con IVA (69.929,30 × 1,21).
+  - Los impuestos elegidos en el panel: venta 21 % y compra «0% Imports».
+  - El mapeo de alícuotas recordado para 21 %.
 - Una base con `l10n_ar`, que es donde aparecen los impuestos reales.
 - La descarga del diagnóstico desde la interfaz.
 
@@ -66,6 +71,9 @@ Leído del `addons/` instalado, no por analogía con versiones anteriores.
 - **`product.supplierinfo`:** `uom_id` (requerido), y `price` y `min_qty` expresados en esa unidad.
 - **Marca:** no existe en `product`.
 - **`l10n_ar`:** disponible. **PENDIENTE DE VALIDAR:** si está instalada en la base de prueba.
+- Los campos binarios (por ejemplo `image_1920`) reciben `BinaryValue` (`odoo.tools.binary.BinaryBytes`), no bytes en base64. Con bytes da `TypeError: use BinaryValue instead of bytes` (encontrado al probar «Agregar» con la API real, 23/11/2026).
+- Las plantillas de OWL 3 no ven los globales de JS (`String`, `Number`, `Math`…): `String(x)` da `ctx.String is not a function`. Se resuelve con un método del componente.
+- Cambiar la localización fiscal borra impuestos. Por eso el mapeo de alícuotas usa `ondelete='set null'`: si se borra un impuesto, la fila queda sin él y se vuelve a preguntar.
 
 ## Sin verificar / riesgos conocidos
 - La interfaz con datos: OWL 3 es alfa, y la lista de productos y el panel de «Agregar» todavía no se dibujaron.
