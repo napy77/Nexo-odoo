@@ -1,16 +1,18 @@
 # Estado actual — Nexo-odoo (rama 20.0)
 
-Actualizado al 23/11/2026. Se lee al empezar cada tarea y se actualiza al terminarla.
+Actualizado al 23/11/2026 (tarde). Se lee al empezar cada tarea y se actualiza al terminarla.
 
 ## Resumen
 | Tema | Estado |
 |---|---|
 | `nexo_core`: cliente HTTP, errores, sesión (token), registro y diagnóstico | PARCIAL: instalado y con tests pasando en una base de prueba; sin API real |
 | `nexo_b2b`: Ajustes, login, catálogo (OWL), «Agregar», mapeos | PARCIAL: instalado y con tests pasando en una base de prueba; pantallas vistas en el navegador; sin API real |
-| Tests con respuestas simuladas (`nexo_core/tests`, `nexo_b2b/tests`) | IMPLEMENTADO: **19 tests, 0 fallas** (23/11/2026, base `nexo_test_ci`) |
+| Tests con respuestas simuladas (`nexo_core/tests`, `nexo_b2b/tests`) | IMPLEMENTADO: **20 tests, 0 fallas** (23/11/2026, base `nexo_test_ci`) |
+| Login y búsqueda contra la API real de NexoB2B (`https://nexob2b.app`) | IMPLEMENTADO: probado por German con Jure Hnos SRL (dueño), 3879 productos |
+| «Agregar» contra la API real | PENDIENTE DE VALIDAR |
 | Acceso al Odoo 20 de Linware | IMPLEMENTADO (SSH con llave, lectura sin `sudo`) |
 | Base de prueba en Odoo 20 | PENDIENTE DE VALIDAR (todavía no existe) |
-| Acceso a la API de NexoB2B (host, clave, usuario) | PENDIENTE DE VALIDAR |
+| Acceso a la API de NexoB2B | IMPLEMENTADO: host `https://nexob2b.app`; la clave y el usuario los carga German en Ajustes de la base de prueba |
 
 ## Lo que sí se probó (23/11/2026, Odoo 20 de Linware, base descartable `nexo_test_ci`)
 - **Instalación** de `nexo_core` y `nexo_b2b` en una base nueva, sin datos de demo y sin localización: modelos, permisos `ir.access.csv`, vistas, menús y assets cargan sin errores.
@@ -22,16 +24,28 @@ Actualizado al 23/11/2026. Se lee al empezar cada tarea y se actualiza al termin
   - Ni la contraseña ni la clave aparecen en el log del servidor.
   - Se encontró y corrigió que el campo de contraseña quedaba lleno después del intento.
 
+- **Con la API real** (German inició sesión con un usuario de Jure Hnos SRL):
+  - Búsqueda: 3879 productos con stock.
+  - Filtros por pasillo → rubro → subrubro.
+  - «Mostrar sin stock» y «Solo mayoristas con alta aprobada», con las marcas «✓ Alta» y «Sin alta» por mayorista.
+  - Las vistas Lista, Chica y Grande (la elegida queda guardada en el navegador), el detalle al tocar una tarjeta y «Cargar más productos» (de 50 a 100).
+  - Sin errores en la consola.
+
 **No se probó:**
-- La API real de NexoB2B: faltan el host, la clave y el usuario.
-- La pantalla de resultados de búsqueda y el panel de «Agregar» dibujados en el navegador: necesitan respuestas reales.
+- **«Agregar»** con un producto real, y el panel que pregunta alícuota y categoría.
 - Una base con `l10n_ar`, que es donde aparecen los impuestos reales.
 - La descarga del diagnóstico desde la interfaz.
 
 ## Qué hace el código (desafío 1)
 - **Ajustes → NexoB2B:** URL, clave publicable, estado de la sesión, «Iniciar sesión», «Probar conexión», «Cerrar sesión», mapeos y registro.
 - **Login:** la contraseña viaja una sola vez al servidor de Odoo y de ahí a NexoB2B. No se guarda, no se registra y la pantalla la borra. Solo se guarda el token con su vencimiento, en `nexo.token` (solo administradores). Si el usuario es del equipo y no tiene `comprar`, la sesión se rechaza con un mensaje claro.
-- **Compras → Pedidos → Catálogo NexoB2B:** búsqueda por texto o EAN con pausa de 400 ms, descarte de respuestas viejas, «Mostrar sin stock», páginas de 20. Por producto muestra foto, nombre, marca, EAN, IVA, taxonomía y, por mayorista, sus presentaciones con `precio_mostrar` y stock.
+- **Compras → Pedidos → Catálogo NexoB2B**, igual que el portal del comercio en NexoB2B (`storefront/…/comercio/productos/page.tsx`):
+  - Búsqueda por texto, marca o EAN, con pausa de 400 ms y descarte de respuestas viejas.
+  - Filtros en «chips» por pasillo, rubro y subrubro, que salen de `/store/taxonomia`.
+  - «Mostrar sin stock» (lo filtra el servidor) y «Solo mayoristas con alta aprobada». Este último se filtra sobre lo ya traído, igual que en el portal, porque NexoB2B no tiene ese filtro.
+  - Vistas Lista, Chica y Grande, contador «N de total», páginas de 50 y «Cargar más».
+  - Precios sin decimales, como el portal.
+  - Se manda el `comercio_id` del token, **siempre junto con el token**, para que NexoB2B filtre por zona y diga `tiene_alta`.
 - **«Agregar»** (por mayorista): vuelve a leer el producto de NexoB2B en el servidor y no toma nada del navegador. Si la alícuota no está confirmada o la categoría no está mapeada, pregunta en la misma pantalla y lo recuerda. Crea el producto (EAN en `barcode`, marca, foto, categoría, impuestos, Unidades), el proveedor (`nexo_mayorista_id`) y una línea de proveedor por presentación, con la unidad «x12 Unidades» y el precio tal cual. El `ean_propio` va a `product.uom`.
 - **Idempotencia:** se reconoce el producto por `nexo_b2b_id` o por EAN, y la línea por `nexo_presentacion_id`. Repetir actualiza, no duplica. Si el producto ya era del comercio, no se pisa nada suyo: solo se vincula y se suman las líneas.
 - **Diagnóstico:** cada llamada lleva `X-Nexo-Connector: odoo/<versión del módulo>` y `X-Request-Id`. `nexo.log` guarda método, ruta, estado, duración e id de solicitud, nunca cabeceras ni cuerpos. «Descargar diagnóstico» arma un JSON con las versiones, la configuración (la clave como `***`), la prueba de conexión y las últimas 200 llamadas.
@@ -61,4 +75,8 @@ Leído del `addons/` instalado, no por analogía con versiones anteriores.
 - Los valores de `unidad_base` del maestro: se mapean `unidad`, `kg` y `litro`, y el resto va en Unidades con aviso.
 - La moneda: se asume que los precios de NexoB2B están en la moneda de la compañía (ARS).
 - La foto se descarga de la URL que manda NexoB2B (máximo 5 MB, solo `image/*`). Si NexoB2B mandara una URL interna, el servidor de Odoo la pediría igual. Es aceptable mientras la fuente sea NexoB2B.
+- **Filtro por pasillo:** muchos productos del maestro no tienen `pasillo_id` (por ejemplo, Tecnología da 0 y su rubro Informática, 803). Es un tema de datos de NexoB2B, que el portal también tiene. Pedido en `docs/PARA-NEXOB2B_de-NEXO-ODOO_productos-sin-pasillo.md`. El conector no lo disimula.
+- **«Solo con alta»** filtra solo la página ya cargada: con pocas altas puede mostrar menos de 50 aunque haya más. El portal se comporta igual.
+- **Algunos EAN del maestro no son EAN** (por ejemplo, `NXB-1000816`). Ese valor iría tal cual al `barcode` de Odoo. PENDIENTE DE VALIDAR con NexoB2B si es intencional.
+- **Nombres de presentación «1» o «unidad»:** son datos de NexoB2B y se muestran tal cual.
 - `sku` y `cantidad_minima` no vienen en `/store/productos`: quedan vacíos (pedido a NexoB2B en `docs/`).
