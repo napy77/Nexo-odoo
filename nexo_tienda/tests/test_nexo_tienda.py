@@ -299,6 +299,15 @@ class TestNexoTienda(TransactionCase):
         self.assertTrue(order.sale_order_id.nexo_tienda_no_cobrar)
         self.assertIn('primer pedido', order.revision_texto)
 
+    def test_sync_button_from_list(self):
+        # El botón de la cabecera llega con los registros elegidos.
+        order = self._order()
+        self.fake.add('P-0002', [('10', 1, 121000)])
+        action = order.action_sync_now()
+        self.assertEqual(action['params']['type'], 'success')
+        self.assertTrue(self.Order.search([('code', '=', 'P-0002')]))
+        self.Order.browse().action_sync_now()
+
     def test_disabled_does_not_sync(self):
         self.Order._set_enabled(False)
         self.fake.add('P-0002', [('10', 1, 121000)])

@@ -491,9 +491,11 @@ class NexoTiendaOrder(models.Model):
         return {'type': 'ir.actions.act_window', 'res_model': 'sale.order', 'res_id': self.sale_order_id.id,
                 'view_mode': 'form'}
 
-    @api.model
     def action_sync_now(self):
-        """Botón de la lista y de Ajustes."""
+        """Botón de la lista. Con display="always" llega con los registros
+        elegidos (o ninguno), no como método de modelo: por eso no es
+        @api.model (el mismo error que tuvo «Comparar ahora»)."""
+        self = self.browse()
         self.check_access('write')
         if not self._enabled():
             raise UserError(_("Los pedidos de NexoTienda están apagados. Prendelos en Ajustes → NexoPOS."))
