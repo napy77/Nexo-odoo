@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="ir_cron_nexo_pos_push" model="ir.cron">
+        <field name="name">NexoPOS: mandar precios y stock</field>
+        <field name="model_id" ref="model_nexo_pos_stock_queue"/>
+        <field name="state">code</field>
+        <field name="code">env['nexo.pos.service']._cron_push()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">1</field>
+        <field name="interval_type">minutes</field>
+    </record>
+    <record id="ir_cron_nexo_pos_compare" model="ir.cron">
+        <field name="name">NexoPOS: comparar el stock</field>
+        <field name="model_id" ref="model_nexo_pos_stock_diff"/>
+        <field name="state">code</field>
+        <field name="code">env['nexo.pos.service']._cron_compare()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+</odoo>

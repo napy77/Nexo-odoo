@@ -28,26 +28,27 @@ class NexoError(Exception):
     """
 
     MESSAGES = {
-        'bad_url': "La URL de NexoB2B no es válida. Tiene que empezar con https://.",
-        'network': "No se pudo conectar con NexoB2B. Revisá la conexión a internet o la URL.",
-        'timeout': "NexoB2B tardó demasiado en responder. Probá de nuevo en un rato.",
+        'bad_url': "La URL de {svc} no es válida. Tiene que empezar con https://.",
+        'network': "No se pudo conectar con {svc}. Revisá la conexión a internet o la URL.",
+        'timeout': "{svc} tardó demasiado en responder. Probá de nuevo en un rato.",
         'auth': "Credenciales inválidas o sesión vencida. Volvé a iniciar sesión.",
-        'forbidden': "El usuario no tiene permiso para esta operación en NexoB2B.",
-        'bad_key': "La clave publicable de NexoB2B no es válida.",
-        'not_found': "NexoB2B no reconoce esta dirección. Revisá la URL configurada.",
-        'server': "NexoB2B tuvo un error interno. Probá de nuevo en un rato.",
-        'invalid_response': "La respuesta no parece venir de NexoB2B. Revisá la URL configurada.",
-        'client': "NexoB2B rechazó la solicitud.",
+        'forbidden': "El usuario no tiene permiso para esta operación en {svc}.",
+        'bad_key': "La clave publicable de {svc} no es válida.",
+        'not_found': "{svc} no reconoce esta dirección. Revisá la URL configurada.",
+        'server': "{svc} tuvo un error interno. Probá de nuevo en un rato.",
+        'invalid_response': "La respuesta no parece venir de {svc}. Revisá la URL configurada.",
+        'client': "{svc} rechazó la solicitud.",
     }
 
-    def __init__(self, kind, message=None, status=None, request_id=None, detail=None):
+    def __init__(self, kind, message=None, status=None, request_id=None, detail=None, service='NexoB2B'):
         self.kind = kind
         self.status = status
         self.request_id = request_id
         # Mensaje que devolvió el servidor (ya viene pensado para el usuario
         # en NexoB2B, por ejemplo «Tu usuario está desactivado…»).
         self.detail = detail
-        super().__init__(message or self.MESSAGES.get(kind, self.MESSAGES['client']))
+        self.service = service
+        super().__init__(message or self.MESSAGES.get(kind, self.MESSAGES['client']).format(svc=service))
 
     def user_message(self):
         msg = str(self)
@@ -97,8 +98,13 @@ class NexoClient:
     """
 
     def __init__(self, base_url, publishable_key=None, token=None, connector='odoo',
-                 timeout=DEFAULT_TIMEOUT, on_call=None):
-        self.base_url = normalize_base_url(base_url)
+                 timeout=DEFAULT_TIMEOUT, on_call=None, service='NexoB2B'):
+        # Nombre del servicio para los mensajes al usuario.
+        self.service = service
+        try:
+            self.base_url = normalize_base_url(base_url)
+        except NexoError as e:
+            raise NexoError('bad_url', service=service) from e
         self.publishable_key = publishable_key
         self.token = token
         self.connector = connector
@@ -136,14 +142,14 @@ class NexoClient:
                     timeout=self.timeout, verify=True, allow_redirects=False,
                 )
             except requests.exceptions.Timeout as e:
-                raise NexoError('timeout', request_id=request_id) from e
+                raise NexoError('timeout', request_id=request_id, service=self.service) from e
             except requests.exceptions.InvalidURL as e:
-                raise NexoError('bad_url', request_id=request_id) from e
+                raise NexoError('bad_url', request_id=request_id, service=self.service) from e
             except requests.exceptions.RequestException as e:
                 # Incluye errores de certificado: no se reintenta sin verificar.
-                raise NexoError('network', request_id=request_id) from e
+                raise NexoError('network', request_id=request_id, service=self.service) from e
             entry['status'] = response.status_code
-            return self._parse(response, request_id)
+            return self._parse(response, request_id, self.service)
         except NexoError as e:
             entry['error_kind'] = e.kind
             raise
@@ -158,7 +164,7 @@ class NexoClient:
                     _logger.exception("No se pudo guardar el registro de la llamada a Nexo")
 
     @staticmethod
-    def _parse(response, request_id):
+    def _parse(response, request_id, service='NexoB2B'):
         status = response.status_code
         try:
             data = response.json()
@@ -167,19 +173,19 @@ class NexoClient:
         detail = data.get('error') if isinstance(data, dict) and isinstance(data.get('error'), str) else None
         if 200 <= status < 300:
             if data is None:
-                raise NexoError('invalid_response', status=status, request_id=request_id)
+                raise NexoError('invalid_response', service=service, status=status, request_id=request_id)
             return data
         if 300 <= status < 400:
             # Una redirección suele ser http→https o una URL de otro sitio.
-            raise NexoError('not_found', status=status, request_id=request_id)
+            raise NexoError('not_found', service=service, status=status, request_id=request_id)
         if status == 401:
-            raise NexoError('auth', status=status, request_id=request_id, detail=detail)
+            raise NexoError('auth', service=service, status=status, request_id=request_id, detail=detail)
         if status == 403:
-            raise NexoError('forbidden', message=detail, status=status, request_id=request_id)
+            raise NexoError('forbidden', service=service, message=detail, status=status, request_id=request_id)
         if status == 404:
-            raise NexoError('not_found', status=status, request_id=request_id)
+            raise NexoError('not_found', service=service, status=status, request_id=request_id)
         if status == 400 and detail and 'publishable' in detail.lower():
-            raise NexoError('bad_key', status=status, request_id=request_id)
+            raise NexoError('bad_key', service=service, status=status, request_id=request_id)
         if status >= 500:
-            raise NexoError('server', status=status, request_id=request_id)
-        raise NexoError('client', message=detail, status=status, request_id=request_id)
+            raise NexoError('server', service=service, status=status, request_id=request_id)
+        raise NexoError('client', service=service, message=detail, status=status, request_id=request_id)

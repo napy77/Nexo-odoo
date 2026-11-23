@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_nexo_pos" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.nexo_pos</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="91"/>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="NexoPOS" string="NexoPOS" name="nexo_pos" groups="base.group_system">
+                    <block title="Conexión" name="nexo_pos_connection">
+                        <setting id="nexo_pos_key" string="Clave del comercio"
+                                 help="Se genera en NexoPOS → Configuración → Conectar tu sistema, y se muestra una sola vez. Odoo la prueba antes de guardarla y no la vuelve a mostrar.">
+                            <field name="nexo_pos_status" readonly="1"/>
+                            <div class="content-group mt8">
+                                <div class="row">
+                                    <label for="nexo_pos_key" class="col-lg-4 o_light_label"/>
+                                    <field name="nexo_pos_key" password="True" placeholder="npos_…"/>
+                                </div>
+                                <div class="row">
+                                    <label for="nexo_pos_url" class="col-lg-4 o_light_label"/>
+                                    <field name="nexo_pos_url"/>
+                                </div>
+                            </div>
+                            <div class="mt8">
+                                <button name="action_nexo_pos_set_key" type="object" string="Cargar clave" class="btn-primary"/>
+                                <button name="action_nexo_pos_test" type="object" string="Probar conexión" class="btn-secondary ms-2"/>
+                                <button name="action_nexo_pos_remove_key" type="object" string="Quitar clave" class="btn-link ms-2"
+                                        confirm="Odoo deja de mandar precios y stock a NexoPOS. ¿Seguimos?"/>
+                            </div>
+                        </setting>
+                        <setting id="nexo_pos_push" string="Mandar precios y stock a NexoPOS"
+                                 help="Apagado, Odoo solo lee y compara. Prendido, cada minuto le escribe a NexoPOS los precios que cambiaron y los movimientos del depósito, y eso es lo que ve NexoTienda. Antes de prenderlo, revisá las diferencias de stock.">
+                            <field name="nexo_pos_push"/>
+                        </setting>
+                        <setting id="nexo_pos_warehouse" string="Depósito"
+                                 help="El stock de este depósito es el que ve NexoTienda. NexoPOS tiene un solo stock por comercio.">
+                            <field name="nexo_pos_warehouse_id" options="{'no_create': True}"/>
+                        </setting>
+                    </block>
+                    <block title="Productos y stock" name="nexo_pos_sync">
+                        <setting id="nexo_pos_link" string="Vincular productos"
+                                 help="Busca en NexoPOS los productos de Odoo por código de barras. Solo lee en NexoPOS.">
+                            <button name="action_nexo_pos_link" type="object" string="Vincular productos" class="btn-link" icon="east"/>
+                        </setting>
+                        <setting id="nexo_pos_import" string="Traer productos de NexoPOS"
+                                 help="Crea en Odoo los productos de NexoPOS que no están, con código de barras, precio, costo y stock, ya vinculados. Solo lee en NexoPOS.">
+                            <button name="action_nexo_pos_import" type="object" string="Traer productos" class="btn-link" icon="east"
+                                    confirm="Se crean en Odoo los productos de NexoPOS que no están, y se carga su stock como inventario inicial en el depósito elegido. En NexoPOS no se cambia nada. ¿Seguimos?"/>
+                        </setting>
+                        <setting id="nexo_pos_diffs" string="Diferencias de stock"
+                                 help="Compara el stock de Odoo con el de NexoPOS. Se hace solo una vez por día.">
+                            <button name="action_nexo_pos_diffs" type="object" string="Comparar ahora" class="btn-link" icon="east"/>
+                        </setting>
+                        <setting id="nexo_pos_queue" string="Ajustes enviados"
+                                 help="Lo que Odoo le mandó a NexoPOS, y lo que no tuvo respuesta">
+                            <button name="action_nexo_pos_queue" type="object" string="Ver ajustes" class="btn-link" icon="east"/>
+                            <button name="action_nexo_log" type="object" string="Registro de llamadas" class="btn-link" icon="east"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>

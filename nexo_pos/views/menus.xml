@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_nexo_pos" name="NexoPOS" parent="stock.menu_stock_config_settings"
+              groups="stock.group_stock_manager" sequence="90"/>
+    <menuitem id="menu_nexo_pos_diff" name="Diferencias de stock" parent="menu_nexo_pos"
+              action="nexo_pos_stock_diff_action" sequence="10"/>
+    <menuitem id="menu_nexo_pos_queue" name="Ajustes enviados" parent="menu_nexo_pos"
+              action="nexo_pos_stock_queue_action" sequence="20"/>
+</odoo>
