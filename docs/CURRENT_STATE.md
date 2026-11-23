@@ -1,18 +1,18 @@
 # Estado actual — Nexo-odoo (rama 20.0)
 
-Actualizado al 23/11/2026 (tarde). Se lee al empezar cada tarea y se actualiza al terminarla.
+Actualizado al 23/11/2026 (noche). Se lee al empezar cada tarea y se actualiza al terminarla.
 
 ## Resumen
 | Tema | Estado |
 |---|---|
 | `nexo_core`: cliente HTTP, errores, sesión (token), registro y diagnóstico | PARCIAL: instalado y con tests pasando en una base de prueba; sin API real |
 | `nexo_b2b`: Ajustes, login, catálogo (OWL), «Agregar», mapeos | PARCIAL: instalado y con tests pasando en una base de prueba; pantallas vistas en el navegador; sin API real |
-| Tests con respuestas simuladas (`nexo_core/tests`, `nexo_b2b/tests`) | IMPLEMENTADO: **58 tests, 0 fallas** (23/11/2026, base `nexo_test_ci`) |
+| Tests con respuestas simuladas | IMPLEMENTADO: `nexo_core`, `nexo_b2b`, `nexo_pos` y `nexo_tienda`, **0 fallas** (23/11/2026 noche, base `nexo_test_ci`, en dos corridas: 33 y 49 casos según el contador de Odoo) |
 | Login y búsqueda contra la API real de NexoB2B (`https://nexob2b.app`) | IMPLEMENTADO: probado por German con Jure Hnos SRL (dueño), 3879 productos |
 | «Agregar» contra la API real | IMPLEMENTADO: probado por German el 23/11/2026 con «Accesorios Lona Pelopincho 1130» (Rivera Hogar) |
 | Compras vía NexoB2B (pedido de compra → orden, estado y avisos) | PARCIAL: envío real y confirmación probados (ORD-00055); faltan armado, transporte, entrega y recepción |
 | `nexo_pos`: precios y stock de Odoo en NexoPOS (base de NexoTienda) | PARCIAL: 14 tests; lectura e importación probadas con Jure; escritura sin probar |
-| Pedidos de NexoTienda en la caja de Odoo | PROPUESTO: `docs/PROPUESTA-caja-odoo-y-nexotienda.md`; depende de NexoPOS (pedido enviado) |
+| Pedidos de NexoTienda en la caja de Odoo (`nexo_tienda`) | PARCIAL: 14 tests con NexoPOS simulado y pantallas vistas; sin probar contra NexoPOS real, que todavía no desplegó `/pedidos` |
 | Acceso al Odoo 20 de Linware | IMPLEMENTADO (SSH con llave, lectura sin `sudo`) |
 | Base de prueba en Odoo 20 | PENDIENTE DE VALIDAR (todavía no existe) |
 | Acceso a la API de NexoB2B | IMPLEMENTADO: host `https://nexob2b.app`; la clave y el usuario los carga German en Ajustes de la base de prueba |
@@ -77,6 +77,28 @@ Actualizado al 23/11/2026 (tarde). Se lee al empezar cada tarea y se actualiza a
 - El cron de cada minuto: el servidor de prueba corre sin tareas programadas.
 - Un catálogo de más de 500 productos (la paginación de `GET /productos`).
 - Ventas del Punto de Venta de Odoo: `point_of_sale` no está instalado. El enganche está en `stock.move._action_done`, así que debería tomarlas, pero no se probó.
+
+## Pedidos de NexoTienda (`nexo_tienda`, 23/11/2026 noche)
+NexoPOS hizo lo pedido (commit `cd15a2c`, respuesta en `nexo-pos/docs/RESPUESTA-PEDIDOS-ERP-A-NEXO-ODOO.md`), **pero no está desplegado**: hasta el deploy, `/api/erp/v1/pedidos` da 404. Decisiones en DEC-021.
+
+**IMPLEMENTADO, con tests contra NexoPOS simulado** (`nexo_tienda/tests/test_nexo_tienda.py`, 12 casos):
+- **Interruptor** «Atender los pedidos de NexoTienda en Odoo» en Ajustes → NexoPOS, por compañía y **apagado**.
+- **Cada minuto** (cron) o con «Traer pedidos ahora»: `GET /pedidos` con el cursor de NexoPOS tal cual. Un pedido repetido se actualiza por `code`.
+- **Pedido de venta** del equipo «NexoTienda», en el depósito de NexoPOS, con el precio de NexoPOS pasado a sin IVA. Si un producto no está vinculado, no se arma y el pedido muestra cuál falta.
+- **Botones** Aceptar (pide «para cuándo», muestra la revisión de CR-0003), Listo, Salió (solo reparto), Entregado, Cancelar (pide motivo) y Actualizar.
+  - Ante un 409, Odoo vuelve a leer el pedido y se queda con el estado de NexoPOS.
+  - Sin respuesta, avisa que se puede tocar de nuevo.
+- **Stock:** lo que sale por un pedido de tienda no se manda a NexoPOS (ya lo descontó al aceptar). La comparación resta lo aceptado sin entregar (columna «En pedidos de tienda»).
+- **Cobrado en la caja o entregado en Odoo:** el cron lo pasa a entregado en NexoPOS, paso por paso.
+- **Entregado en NexoPOS:** la entrega de Odoo se valida sola. **Cancelado en NexoPOS:** se cancela el pedido de venta; si ya se había entregado en Odoo, queda una actividad.
+- **Pagado con Mercado Pago o a la libreta:** el pedido y el pedido de venta avisan «No lo cobres en la caja».
+
+**Visto en el navegador** (base de prueba, con dos pedidos de demo, P-DEMO0001 y P-DEMO0002, creados con `_upsert` sin llamar a NexoPOS): la lista, la ficha con la revisión y el producto sin vincular, la ventana «Aceptar» (cerrada sin aceptar), el aviso en el pedido de venta S00012 (total $500 igual a NexoPOS) y el interruptor en Ajustes.
+
+**Sin probar:**
+- Contra NexoPOS real: espera el deploy. Plan en `docs/PARA-NEXOPOS_de-NEXO-ODOO_pedidos-de-tienda-para-erp.md`.
+- **Cobrar en el Punto de Venta** («Cobrar un pedido»): no hay test. Lo que no se manda a NexoPOS en la entrega de la caja se calcula con las líneas que vienen de un pedido de tienda. Con «mover el stock al cerrar la sesión», toma los pedidos de la sesión. PENDIENTE DE VALIDAR.
+- **Cómo entra a la contabilidad un pago de Mercado Pago o a la libreta.** PENDIENTE DE VALIDAR con German.
 
 ## Compras vía NexoB2B (23/11/2026)
 **IMPLEMENTADO en código, con tests:**

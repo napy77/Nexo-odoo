@@ -107,3 +107,12 @@ Origen: brief de nexo-ecosystem (30/10/2026) y respuesta con las decisiones de G
 ## DEC-020 — El precio que va a NexoPOS lleva IVA
 - `list_price` más los impuestos de venta del producto (`compute_all`, `total_included`), en centavos.
 - **Motivo:** NexoTienda muestra y cobra el precio de NexoPOS, que es el precio al consumidor. PENDIENTE DE VALIDAR con German si algún comercio carga en NexoPOS precios sin IVA.
+
+## DEC-021 — Pedidos de NexoTienda en Odoo: pedido de venta y stock que no se cuenta dos veces
+- Cada pedido de tienda es un `nexo.tienda.order` (el espejo de NexoPOS) y, cuando todos sus productos están vinculados, un pedido de venta del equipo «NexoTienda», que la caja cobra con «Cobrar un pedido» (`pos_sale`). Sin todos los productos vinculados no se arma el pedido de venta: uno a medias se cobraría mal.
+- NexoPOS sigue siendo el dueño del pedido. Odoo pide cada paso y se queda con lo que NexoPOS contesta. Ante un 409, Odoo vuelve a leer el pedido y muestra el estado real.
+- **Stock:** lo que sale de Odoo por un pedido de tienda (la entrega del pedido de venta, o la de la caja en las líneas que vienen de uno) **no se manda** a NexoPOS, porque NexoPOS lo descontó al aceptar. Las devoluciones sí se mandan. La comparación diaria resta lo aceptado y sin entregar.
+- **Cobrado o entregado en Odoo → entregado en NexoPOS**, paso por paso (aceptar, listo, entregado), porque NexoPOS no deja saltear. Si el pedido estaba `recibido`, aceptarlo ahí es lo que descuenta el stock de NexoPOS. Lo manda el cron cada minuto: repetir no duplica, así que un corte se reintenta solo.
+- **Entregado en NexoPOS → la entrega de Odoo se valida sola.**
+- Viene **apagado** por compañía: prenderlo es decidir que la caja es Odoo (DEC-016).
+- **PENDIENTE DE VALIDAR con German:** un pedido pagado con Mercado Pago o a la libreta no se cobra en la caja (Odoo lo avisa), pero tampoco se registra ese pago en Odoo. Falta decidir cómo entra a la contabilidad.
