@@ -88,6 +88,7 @@
                             <field name="cancelado_por" invisible="state != 'cancelado'"/>
                             <field name="venta_ticket" invisible="not venta_ticket"/>
                             <field name="entregar_pendiente" invisible="not entregar_pendiente"/>
+                            <field name="pos_order_id" invisible="not pos_order_id"/>
                         </group>
                     </group>
                     <field name="line_ids">

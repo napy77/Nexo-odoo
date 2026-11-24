@@ -115,8 +115,7 @@ class FakeNexoPosPedidos(FakeNexoPos):
         return [(m, path) for m, path, _p, _b in self.calls if m == 'POST' and path.startswith('/pedidos')]
 
 
-@tagged('post_install', '-at_install')
-class TestNexoTienda(TransactionCase):
+class NexoTiendaCase(TransactionCase):
 
     @classmethod
     def setUpClass(cls):
@@ -172,6 +171,11 @@ class TestNexoTienda(TransactionCase):
                 move.quantity = move.product_uom_qty
                 move.picked = True
             picking.button_validate()
+
+
+
+@tagged('post_install', '-at_install')
+class TestNexoTienda(NexoTiendaCase):
 
     def test_sync_creates_sale_order(self):
         order = self._order()
@@ -314,3 +318,96 @@ class TestNexoTienda(TransactionCase):
         self.Order._cron_sync()
         self.assertFalse(self.Order.search([('code', '=', 'P-0002')]))
         self.assertFalse(self.fake.calls)
+
+
+@tagged('post_install', '-at_install')
+class TestNexoTiendaPos(NexoTiendaCase):
+    """El pedido aparece en la caja abierta como una orden sin cobrar."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.config = cls.env['pos.config'].create({'name': 'Caja NexoTienda prueba'})
+
+    def setUp(self):
+        super().setUp()
+        self.env['ir.config_parameter'].sudo().set_str(
+            f'nexo_tienda.pos_config_id.{self.env.company.id}', str(self.config.id))
+
+    def _open(self):
+        self.config.open_ui()
+        return self.config.current_session_id
+
+    def test_pos_order_appears_in_open_session(self):
+        session = self._open()
+        order = self._order()
+        pos_order = order.pos_order_id
+        self.assertEqual(pos_order.state, 'draft')
+        self.assertEqual(pos_order.session_id, session)
+        self.assertEqual(pos_order.floating_order_name, 'P-0001')
+        self.assertEqual(pos_order.partner_id, order.sale_order_id.partner_id)
+        self.assertEqual(pos_order.lines.sale_order_line_id, order.sale_order_id.order_line)
+        self.assertAlmostEqual(pos_order.amount_total, 3620.0)
+        self.assertIn('3510000000', pos_order.internal_note)
+        # Repetir la sincronización no la duplica.
+        self.Order._cron_sync()
+        self.assertEqual(self.env['pos.order'].search_count([('nexo_tienda_order_id', '=', order.id)]), 1)
+        # Mientras no se cobre, la caja no cuenta como entregado.
+        self.assertFalse(order._delivered_in_odoo())
+
+    def test_only_open_pos_is_used_when_none_chosen(self):
+        self.env['ir.config_parameter'].sudo().set_str(f'nexo_tienda.pos_config_id.{self.env.company.id}', '')
+        if self.env['pos.config'].search([('company_id', '=', self.env.company.id)]).filtered(
+                lambda c: c.current_session_id.state in ('opening_control', 'opened')):
+            self.skipTest("La base ya tiene otra caja abierta")
+        self.env['pos.config'].create({'name': 'Otra caja cerrada'})
+        session = self._open()
+        order = self._order()
+        self.assertEqual(order.pos_order_id.session_id, session)
+
+    def test_closed_pos_gets_it_when_opened(self):
+        order = self._order()
+        self.assertFalse(order.pos_order_id)
+        session = self._open()
+        self.Order._cron_sync()
+        self.assertEqual(order.pos_order_id.session_id, session)
+
+    def test_paid_online_is_not_put_in_pos(self):
+        self._open()
+        order = self._order(pago={'medio': 'online', 'estado': 'pagado', 'id': 'mp-1'})
+        self.assertFalse(order.pos_order_id)
+
+    def test_cancelled_in_nexopos_leaves_pos(self):
+        self._open()
+        order = self._order()
+        self.fake.set_status('P-0001', 'cancelado')
+        self.Order._sync()
+        self.assertEqual(order.pos_order_id.state, 'cancel')
+        self.assertEqual(order.sale_order_id.state, 'cancel')
+
+    def test_deleted_by_cashier_is_not_put_back_in_same_session(self):
+        self._open()
+        order = self._order()
+        order.pos_order_id.unlink()
+        self.Order._cron_sync()
+        self.assertFalse(order.pos_order_id)
+
+    def test_paying_in_pos_tells_nexopos(self):
+        self._open()
+        order = self._order()
+        pos_order = order.pos_order_id
+        method = self.config.payment_method_ids[:1]
+        if not method:
+            self.skipTest("La caja de prueba no tiene medios de pago")
+        pos_order.add_payment({'pos_order_id': pos_order.id, 'payment_method_id': method.id,
+                               'amount': pos_order.amount_total})
+        pos_order.action_pos_order_paid()
+        self.assertTrue(order.entregar_pendiente)
+        self.assertTrue(order._paid_in_pos())
+
+    def test_closing_moves_pending_orders_out(self):
+        session = self._open()
+        order = self._order()
+        session.close_session_from_ui()
+        self.assertFalse(order.pos_order_id.session_id)
+        self.assertEqual(order.pos_order_id.state, 'draft')

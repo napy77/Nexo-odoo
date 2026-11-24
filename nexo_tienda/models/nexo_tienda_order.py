@@ -15,6 +15,7 @@ Repetir un paso contesta 200 sin hacer nada; un paso que no corresponde es
 import logging
 from datetime import datetime, timezone
 from urllib.parse import quote
+from uuid import uuid4
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -50,6 +51,8 @@ PAGO_ESTADO = {'no_aplica': '', 'pendiente': 'pendiente', 'pagado': 'pagado',
                'rechazado': 'rechazado', 'reembolsado': 'reembolsado'}
 
 MAX_PAGES = 50
+# Órdenes de caja que ya se cobraron.
+POS_COBRADA = ('paid', 'done', 'invoiced')
 
 
 def _parse_iso(value):
@@ -117,6 +120,9 @@ class NexoTiendaOrder(models.Model):
         'Entregado en Odoo, falta avisar', readonly=True,
         help="Se cobró o se entregó en Odoo y todavía no se le avisó a NexoPOS. Se avisa solo, cada minuto.")
     error = fields.Text('Problema', readonly=True)
+    pos_order_id = fields.Many2one('pos.order', 'Orden en la caja', readonly=True, copy=False, index='btree_not_null')
+    pos_session_id = fields.Many2one('pos.session', 'Caja donde se puso', readonly=True, copy=False,
+                                     help="Si el cajero borra la orden, no se vuelve a poner en la misma caja.")
 
     _code_company_uniq = models.Constraint('UNIQUE(company_id, code)', "El pedido ya está en Odoo.")
 
@@ -252,6 +258,7 @@ class NexoTiendaOrder(models.Model):
             order._create_sale_order()
         if old_state != order.state:
             order._apply_state(old_state)
+        order._place_in_pos()
         return order
 
     def _lines_key(self):
@@ -356,6 +363,8 @@ class NexoTiendaOrder(models.Model):
         so = so.with_context(nexo_tienda_sync=True)
         if self.state in DESCONTADO_EN_NEXOPOS + ('entregado',) and so.state in ('draft', 'sent'):
             so.action_confirm()
+        if self.state in ('entregado', 'cancelado'):
+            self._remove_from_pos()
         if self.state == 'entregado':
             self.entregar_pendiente = False
             self._deliver_in_odoo()
@@ -369,17 +378,139 @@ class NexoTiendaOrder(models.Model):
             elif so.state != 'cancel':
                 so._action_cancel()
 
+    def _paid_in_pos(self):
+        """Cobrado en la caja. Una orden de caja sin cobrar (la que pone
+        `_place_in_pos`) no cuenta."""
+        so = self.sale_order_id.sudo()
+        return any(line.order_id.state in POS_COBRADA for line in so.pos_order_line_ids)
+
     def _delivered_in_odoo(self):
         so = self.sale_order_id.sudo()
-        return bool(so.pos_order_line_ids) or any(
+        return self._paid_in_pos() or any(
             p.state == 'done' and p.picking_type_code == 'outgoing' for p in so.picking_ids)
+
+    # ------------------------------------------------------------------
+    # La orden en la caja
+    # ------------------------------------------------------------------
+
+    @api.model
+    def _pos_config(self, company=None):
+        """La caja que recibe los pedidos (Ajustes → NexoPOS). Si no se
+        eligió: la única caja de la compañía, o la única abierta."""
+        company = company or self.env.company
+        Config = self.env['pos.config'].sudo()
+        config_id = int(self.env['ir.config_parameter'].sudo().get_str(f'nexo_tienda.pos_config_id.{company.id}') or 0)
+        config = Config.browse(config_id).exists() if config_id else Config
+        if not config:
+            configs = Config.search([('company_id', '=', company.id)])
+            if len(configs) != 1:
+                configs = configs.filtered(
+                    lambda c: c.current_session_id.state in ('opening_control', 'opened'))
+            config = configs if len(configs) == 1 else Config
+        return config
+
+    def _pos_lines(self, so):
+        lines = []
+        for sol in so.order_line.filtered(lambda l: not l.display_type and l.product_id):
+            lines.append(fields.Command.create({
+                'product_id': sol.product_id.id,
+                'qty': sol.product_uom_qty,
+                'price_unit': sol.price_unit,
+                'discount': sol.discount,
+                'tax_ids': [fields.Command.set(sol.tax_ids.ids)],
+                'full_product_name': sol.name,
+                'price_subtotal': sol.price_subtotal,
+                'price_subtotal_incl': sol.price_total,
+                # Precio del pedido, no el de la lista de precios de la caja.
+                'price_type': 'manual',
+                'sale_order_origin_id': so.id,
+                'sale_order_line_id': sol.id,
+                'uuid': str(uuid4()),
+            }))
+        return lines
+
+    def _pos_note(self):
+        partes = [_("Pedido de NexoTienda %s", self.code)]
+        if self.contacto_nombre or self.contacto_telefono:
+            partes.append(" · ".join(filter(None, [self.contacto_nombre, self.contacto_telefono])))
+        entrega = _("Reparto") if self.tipo == 'reparto' else _("Retira")
+        partes.append(" · ".join(filter(None, [entrega, self.franja, self.direccion])))
+        if self.pago_texto:
+            partes.append(_("Pago: %s", self.pago_texto))
+        if self.listo_para:
+            partes.append(_("Listo para: %s", self.listo_para))
+        if self.revision_texto:
+            partes.append(self.revision_texto)
+        return "\n".join(partes)
+
+    def _place_in_pos(self):
+        """Pone el pedido en la caja abierta como una orden sin cobrar, con
+        el nombre del pedido. Odoo le avisa a la caja y aparece sola, igual
+        que un pedido del autoservicio (`notify_synchronisation`).
+
+        Las líneas apuntan al pedido de venta (`sale_order_line_id`), así que
+        cobrarla es lo mismo que «Cobrar un pedido»: confirma el pedido de
+        venta, mueve el stock y se le avisa a NexoPOS que se entregó.
+
+        No se ponen los pagados por Mercado Pago o a la libreta: la caja los
+        cobraría de nuevo.
+        """
+        for order in self.sudo():
+            so = order.sale_order_id
+            if not so or order.state not in EN_CURSO or order.no_cobrar or order._paid_in_pos():
+                continue
+            config = order._pos_config(order.company_id)
+            session = config.current_session_id
+            if not session or session.state not in ('opening_control', 'opened'):
+                continue  # La pone el cron cuando abran la caja.
+            pos_order = order.pos_order_id.exists()
+            if pos_order and pos_order.state == 'draft':
+                if pos_order.session_id != session:
+                    pos_order.session_id = session
+                    config.notify_synchronisation(session.id, 'nexotienda')
+                continue
+            if pos_order or order.pos_session_id == session:
+                continue  # Ya se cobró, o el cajero la borró en esta caja.
+            data = order.env['pos.order'].with_company(order.company_id).with_context(
+                device_identifier='nexotienda').sync_from_ui([{
+                    'uuid': str(uuid4()),
+                    'session_id': session.id,
+                    'state': 'draft',
+                    'partner_id': so.partner_id.id,
+                    'date_order': fields.Datetime.to_string(fields.Datetime.now()),
+                    'floating_order_name': order.code,
+                    'internal_note': order._pos_note(),
+                    'general_customer_note': order.notas or '',
+                    'amount_tax': so.amount_tax,
+                    'amount_total': so.amount_total,
+                    'amount_paid': 0.0,
+                    'amount_return': 0.0,
+                    'lines': order._pos_lines(so),
+                    'nexo_tienda_order_id': order.id,
+                }])
+            pos_order = order.env['pos.order'].browse(data['pos.order'][0]['id'])
+            order.write({'pos_order_id': pos_order.id, 'pos_session_id': session.id})
+            order.message_post(body=_("Se puso en la caja %(caja)s como %(orden)s.",
+                                      caja=config.name, orden=pos_order.floating_order_name or pos_order.name))
+
+    def _remove_from_pos(self):
+        """Entregado o cancelado en NexoPOS: la orden sin cobrar sale de la
+        caja (la caja borra las canceladas al sincronizar)."""
+        for order in self.sudo():
+            pos_order = order.pos_order_id.exists()
+            if pos_order and pos_order.state == 'draft':
+                # Lo que usa la caja. `action_pos_order_cancel` toma `active_ids`, no el registro.
+                pos_order.cancel_order_from_pos()
+                config = pos_order.config_id or order._pos_config(order.company_id)
+                if config.current_session_id:
+                    config.notify_synchronisation(config.current_session_id.id, 'nexotienda')
 
     def _deliver_in_odoo(self):
         """NexoPOS dice entregado (lo entregó su pantalla, o Odoo se lo avisó):
         la entrega de Odoo se valida. El stock ya lo descontó NexoPOS al
         aceptar, así que no se vuelve a mandar (ver stock.move)."""
         so = self.sale_order_id.sudo()
-        if not so or so.pos_order_line_ids:
+        if not so or self._paid_in_pos():
             return  # Lo cobró la caja: el stock lo movió el Punto de Venta.
         pickings = so.picking_ids.filtered(lambda p: p.state not in ('done', 'cancel')
                                            and p.picking_type_code == 'outgoing')
@@ -502,6 +633,8 @@ class NexoTiendaOrder(models.Model):
         try:
             self._send_pending()
             n = self._sync()
+            self.search([('company_id', '=', self.env.company.id), ('state', 'in', EN_CURSO),
+                         ('sale_order_id', '!=', False)])._place_in_pos()
         except NexoError as e:
             if e.kind == 'not_found' and not e.code:
                 raise UserError(_("NexoPOS todavía no tiene los pedidos para ERP (GET /pedidos da 404). "
@@ -559,6 +692,9 @@ class NexoTiendaOrder(models.Model):
                 with self.env.cr.savepoint():
                     Order._send_pending()
                     Order._sync()
+                    # Los que entraron con la caja cerrada.
+                    Order.search([('company_id', '=', company.id), ('state', 'in', EN_CURSO),
+                                  ('sale_order_id', '!=', False)])._place_in_pos()
             except NexoError as e:
                 _logger.warning("NexoTienda (%s): no se pudieron traer los pedidos: %s", company.name, e.kind)
 

@@ -10,6 +10,13 @@
                     <setting id="nexo_tienda_enabled" string="Atender los pedidos de NexoTienda en Odoo"
                              help="Cada minuto trae los pedidos de NexoPOS como pedidos de venta, para cobrarlos en el Punto de Venta. Aceptar, listo y cancelar se hacen desde Odoo y NexoPOS le avisa al comprador. Los pedidos siguen viéndose en NexoPOS.">
                         <field name="nexo_tienda_enabled"/>
+                        <div class="content-group mt8" invisible="not nexo_tienda_enabled">
+                            <div class="row">
+                                <label for="nexo_tienda_pos_config_id" class="col-lg-4 o_light_label"/>
+                                <field name="nexo_tienda_pos_config_id" options="{'no_create': True}"/>
+                            </div>
+                            <div class="text-muted">Con la caja abierta, cada pedido aparece ahí como una orden más, con el nombre del pedido. Los pagados por Mercado Pago o a la libreta no, para no cobrarlos dos veces.</div>
+                        </div>
                         <div class="mt8">
                             <button name="action_nexo_tienda_orders" type="object" string="Ver pedidos" class="btn-link" icon="east"/>
                         </div>
