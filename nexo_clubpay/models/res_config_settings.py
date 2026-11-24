@@ -23,6 +23,14 @@ class ResConfigSettings(models.TransientModel):
     nexo_clubpay_mp_journal_id = fields.Many2one('account.journal', 'Diario de Mercado Pago',
                                                  compute='_compute_nexo_clubpay_journal_id')
 
+    nexo_clubpay_libreta = fields.Boolean('Libreta en ClubPay', compute='_compute_nexo_clubpay_libreta',
+                                          store=True, readonly=False)
+
+    @api.depends('company_id')
+    def _compute_nexo_clubpay_libreta(self):
+        for settings in self:
+            settings.nexo_clubpay_libreta = self.env['nexo.clubpay.libreta.line']._enabled(settings.company_id)
+
     @api.depends('company_id')
     def _compute_nexo_clubpay_mp(self):
         for settings in self:
@@ -73,6 +81,11 @@ class ResConfigSettings(models.TransientModel):
             self._clubpay_mp_provider(self.company_id, create=self.nexo_clubpay_mp)
         if self.nexo_clubpay_key:
             self.action_nexo_clubpay_set_key()
+        Line = self.env['nexo.clubpay.libreta.line']
+        if self.nexo_clubpay_libreta != Line._enabled(self.company_id):
+            if self.nexo_clubpay_libreta and not self.env['nexo.clubpay.charge']._enabled(self.company_id):
+                raise UserError(_("Para la libreta hace falta la clave de ClubPay del comercio (o el simulador)."))
+            Line._set_enabled(self.nexo_clubpay_libreta, self.company_id)
 
     def action_nexo_clubpay_set_key(self):
         key, self.nexo_clubpay_key = self.nexo_clubpay_key, False
@@ -156,6 +169,9 @@ class ResConfigSettings(models.TransientModel):
 
     def action_nexo_clubpay_payments(self):
         return self.env['ir.actions.act_window']._for_xml_id('nexo_clubpay.nexo_clubpay_payment_action')
+
+    def action_nexo_clubpay_libreta(self):
+        return self.env['ir.actions.act_window']._for_xml_id('nexo_clubpay.nexo_clubpay_libreta_line_action')
 
     def action_nexo_clubpay_charges(self):
         return self.env['ir.actions.act_window']._for_xml_id('nexo_clubpay.nexo_clubpay_charge_action')

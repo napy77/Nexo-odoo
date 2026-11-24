@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- El contacto: DNI e invitación, como la ficha del cliente en NexoPOS. -->
+    <record id="view_partner_form_nexo_clubpay_libreta" model="ir.ui.view">
+        <field name="name">res.partner.form.nexo_clubpay_libreta</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_nexo_clubpay_lines" type="object" class="oe_stat_button" icon="fa-book"
+                        invisible="not nexo_clubpay_libreta_on or not nexo_clubpay_line_count">
+                    <field name="nexo_clubpay_line_count" widget="statinfo" string="Libreta ClubPay"/>
+                </button>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="Libreta ClubPay" name="nexo_clubpay_libreta"
+                      invisible="not nexo_clubpay_libreta_on or (parent_id and not is_company)">
+                    <field name="nexo_clubpay_libreta_on" invisible="1"/>
+                    <field name="nexo_clubpay_simulated" invisible="1"/>
+                    <div class="alert alert-warning" role="alert" invisible="not nexo_clubpay_simulated">
+                        Simulador de ClubPay prendido: la invitación no le llega a nadie.
+                    </div>
+                    <group>
+                        <group>
+                            <field name="nexo_clubpay_dni" placeholder="Solo números"
+                                   readonly="nexo_clubpay_status in ('propuesta', 'vinculada')"/>
+                            <field name="nexo_clubpay_status"/>
+                            <field name="nexo_clubpay_persona" invisible="not nexo_clubpay_persona"/>
+                            <field name="nexo_clubpay_message" invisible="not nexo_clubpay_message"/>
+                        </group>
+                        <group>
+                            <field name="nexo_clubpay_invited_at" invisible="not nexo_clubpay_invited_at"/>
+                            <field name="nexo_clubpay_linked_at" invisible="not nexo_clubpay_linked_at"/>
+                            <field name="nexo_clubpay_checked_at" invisible="not nexo_clubpay_checked_at"/>
+                        </group>
+                    </group>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button name="action_nexo_clubpay_invite" type="object" string="Enviar invitación"
+                                class="btn-primary" icon="fa-paper-plane"
+                                invisible="nexo_clubpay_status in ('propuesta', 'vinculada', 'rechazada')"/>
+                        <button name="action_nexo_clubpay_check" type="object" string="Ver si aceptó"
+                                class="btn-secondary" invisible="nexo_clubpay_status != 'propuesta'"/>
+                        <button name="action_nexo_clubpay_reset" type="object" string="Corregir el DNI y volver a invitar"
+                                class="btn-secondary" invisible="nexo_clubpay_status != 'rechazada'"/>
+                        <button name="action_nexo_clubpay_sim_accept" type="object" string="Simular que aceptó"
+                                class="btn-link" invisible="not nexo_clubpay_simulated or nexo_clubpay_status != 'propuesta'"/>
+                        <button name="action_nexo_clubpay_sim_payment" type="object" string="Simular pago desde la app"
+                                class="btn-link" invisible="not nexo_clubpay_simulated or nexo_clubpay_status != 'vinculada'"/>
+                    </div>
+                    <p class="text-muted mt-3">
+                        La invitación es una propuesta: hasta que la persona la acepta en su app, ClubPay no le
+                        muestra nada. Al aceptar ve su saldo a la fecha y, desde ahí, cada factura, nota de crédito
+                        y pago. Lo puede pagar con Mercado Pago.
+                    </p>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="nexo_clubpay_libreta_line_view_list" model="ir.ui.view">
+        <field name="name">nexo.clubpay.libreta.line.list</field>
+        <field name="model">nexo.clubpay.libreta.line</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" decoration-danger="state == 'failed'" decoration-muted="state in ('included', 'from_clubpay')">
+                <field name="occurred_at"/>
+                <field name="partner_id"/>
+                <field name="kind"/>
+                <field name="description"/>
+                <field name="amount" sum="Total"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="state" widget="badge" decoration-success="state == 'sent'"
+                       decoration-warning="state == 'pending'" decoration-danger="state == 'failed'"/>
+                <field name="attempts" optional="hide"/>
+                <field name="error" optional="show"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+                <button name="action_retry" type="object" string="Reintentar" icon="fa-refresh"
+                        invisible="state != 'failed'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="nexo_clubpay_libreta_line_view_search" model="ir.ui.view">
+        <field name="name">nexo.clubpay.libreta.line.search</field>
+        <field name="model">nexo.clubpay.libreta.line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner_id"/>
+                <filter name="pending" string="Por enviar" domain="[('state', '=', 'pending')]"/>
+                <filter name="failed" string="No se pudo enviar" domain="[('state', '=', 'failed')]"/>
+                <group>
+                    <filter name="by_partner" string="Cliente" context="{'group_by': 'partner_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="nexo_clubpay_libreta_line_action" model="ir.actions.act_window">
+        <field name="name">Libreta ClubPay</field>
+        <field name="res_model">nexo.clubpay.libreta.line</field>
+        <field name="view_mode">list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Todavía no hay movimientos enviados a ClubPay</p>
+            <p>Invitá a un cliente desde su contacto, en la solapa «Libreta ClubPay».</p>
+        </field>
+    </record>
+
+    <record id="nexo_clubpay_libreta_payment_view_list" model="ir.ui.view">
+        <field name="name">nexo.clubpay.libreta.payment.list</field>
+        <field name="model">nexo.clubpay.libreta.payment</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0">
+                <field name="paid_at"/>
+                <field name="partner_id"/>
+                <field name="name"/>
+                <field name="amount" sum="Total"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="simulated" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="nexo_clubpay_libreta_payment_view_form" model="ir.ui.view">
+        <field name="name">nexo.clubpay.libreta.payment.form</field>
+        <field name="model">nexo.clubpay.libreta.payment</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0">
+                <sheet>
+                    <div class="alert alert-warning" role="alert" invisible="not simulated">
+                        Pago del simulador: no hubo plata.
+                    </div>
+                    <group>
+                        <field name="partner_id"/>
+                        <field name="name"/>
+                        <field name="amount"/>
+                        <field name="currency_id" invisible="1"/>
+                        <field name="paid_at"/>
+                        <field name="account_payment_ids"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="nexo_clubpay_libreta_payment_action" model="ir.actions.act_window">
+        <field name="name">Pagos de libreta desde ClubPay</field>
+        <field name="res_model">nexo.clubpay.libreta.payment</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_nexo_clubpay_libreta_line" name="Libreta ClubPay" parent="account.menu_finance_receivables"
+              action="nexo_clubpay_libreta_line_action" sequence="90"/>
+    <menuitem id="menu_nexo_clubpay_libreta_payment" name="Pagos de libreta desde ClubPay"
+              parent="account.menu_finance_receivables" action="nexo_clubpay_libreta_payment_action" sequence="91"/>
+
+    <record id="ir_cron_nexo_clubpay_libreta" model="ir.cron">
+        <field name="name">ClubPay: libreta (invitaciones, movimientos y pagos)</field>
+        <field name="model_id" ref="model_nexo_clubpay_libreta_line"/>
+        <field name="state">code</field>
+        <field name="code">env['nexo.clubpay.libreta.line']._cron_libreta()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">2</field>
+        <field name="interval_type">minutes</field>
+    </record>
+</odoo>

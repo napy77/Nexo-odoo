@@ -8,3 +8,9 @@ access_nexo_clubpay_payment_sale,nexo.clubpay.payment ventas,nexo.clubpay.paymen
 access_nexo_clubpay_payment_pos,nexo.clubpay.payment caja,nexo.clubpay.payment,point_of_sale.group_pos_user,r,
 access_nexo_clubpay_payment_account,nexo.clubpay.payment contabilidad,nexo.clubpay.payment,account.group_account_invoice,r,
 access_nexo_clubpay_payment_company,nexo.clubpay.payment multi-compañía,nexo.clubpay.payment,,crud,"[('company_id', 'in', company_ids)]"
+access_nexo_clubpay_libreta_line_sale,nexo.clubpay.libreta.line ventas,nexo.clubpay.libreta.line,sales_team.group_sale_salesman,r,
+access_nexo_clubpay_libreta_line_account,nexo.clubpay.libreta.line contabilidad,nexo.clubpay.libreta.line,account.group_account_invoice,r,
+access_nexo_clubpay_libreta_line_company,nexo.clubpay.libreta.line multi-compañía,nexo.clubpay.libreta.line,,crud,"[('company_id', 'in', company_ids)]"
+access_nexo_clubpay_libreta_payment_sale,nexo.clubpay.libreta.payment ventas,nexo.clubpay.libreta.payment,sales_team.group_sale_salesman,r,
+access_nexo_clubpay_libreta_payment_account,nexo.clubpay.libreta.payment contabilidad,nexo.clubpay.libreta.payment,account.group_account_invoice,r,
+access_nexo_clubpay_libreta_payment_company,nexo.clubpay.libreta.payment multi-compañía,nexo.clubpay.libreta.payment,,crud,"[('company_id', 'in', company_ids)]"

@@ -143,3 +143,12 @@ Fuente: `clubapp/docs/respuesta-pedido-cobros-mercadopago.md` y `backend/src/rou
 - **Sin webhook para Odoo:** ClubPay avisa solo a NexoPOS. Odoo consulta con `GET`.
 - **PENDIENTE DE VALIDAR con ClubPay:** hay una sola caja de Mercado Pago por comercio (compartida con NexoPOS). No está confirmado qué pasa con dos QR de mostrador abiertos a la vez.
 
+## ClubPay — libreta del cliente (`/pos/customers`, `/pos/account/*`)
+Fuente: `nexopos/docs/CLUBPAY-CUENTA-CORRIENTE.md` (contrato acordado con NexoPOS) y `clubapp/docs/API_CONTRACTS.md` («Cuenta corriente»). Misma base y misma clave que los cupones. Importes en centavos, con signo. Decisiones en DEC-025. **EN DESARROLLO: sin probar contra ClubPay real.**
+- `POST /pos/customers {dni, external_id}` → `{encontrado, status, persona?, mensaje?}`. `status`: `sin_cuenta`, `propuesta`, `vinculada` (en su documentación, `aceptada`; se aceptan las dos) o `rechazada`. Idempotente; no pisa una vinculación aceptada.
+- `GET /pos/customers/:external_id` → el mismo estado y `account_id`, sin mandar el DNI.
+- `POST /pos/account/movements {external_id, movement_id, kind, amount_cents, occurred_at, description}`. `kind`: `compra`, `pago`, `ajuste` o `devolucion`. Positivo aumenta la deuda. Idempotente por `movement_id`. Contesta 200 aunque no lo registre.
+- Odoo manda `external_id` = `ODOO-<id>` y `movement_id` = `odoo-<base>-aml-<id>` (o `…-saldo-…`, `…-anulado`).
+- **PROPUESTO, no existe todavía:** `GET /pos/account/payments?desde=<ISO>` → `{pagos: [{clubpay_payment_id, external_id, amount_cents, paid_at, mp_payment_id}], hasta, hay_mas}`. Ver `PARA-CLUBPAY_de-NEXO-ODOO_libreta-en-odoo.md`.
+- **Sin webhook para Odoo:** ClubPay avisa la vinculación y los pagos a `NEXOPOS_WEBHOOK_URL`. Odoo pregunta.
+

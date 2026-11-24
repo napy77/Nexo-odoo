@@ -55,6 +55,16 @@
                             </div>
                         </setting>
                     </block>
+                    <block title="Libreta del cliente" name="nexo_clubpay_libreta">
+                        <setting id="nexo_clubpay_libreta" string="Libreta en ClubPay"
+                                 help="Suma el DNI y «Enviar invitación» al contacto. Si la persona acepta en la app de ClubPay, ve lo que debe (su saldo a cobrar en Contabilidad) y lo puede pagar con el Mercado Pago que el comercio conectó en ClubPay. Igual que en NexoPOS.">
+                            <field name="nexo_clubpay_libreta"/>
+                            <div class="content-group mt8" invisible="not nexo_clubpay_libreta">
+                                <div class="text-muted">Los pagos hechos desde la app todavía no llegan a Odoo: ClubPay se los avisa solo a NexoPOS (pedido enviado a ClubPay). Mientras tanto, registralos a mano.</div>
+                                <button name="action_nexo_clubpay_libreta" type="object" string="Ver movimientos enviados" class="btn-link" icon="east"/>
+                            </div>
+                        </setting>
+                    </block>
                 </app>
             </xpath>
         </field>
