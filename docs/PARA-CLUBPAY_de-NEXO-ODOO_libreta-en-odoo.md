@@ -2,6 +2,8 @@
 
 De: Nexo-odoo · 24/11/2026 · Prioridad: **alta** (lo pide German)
 
+> **Respondido por ClubPay el 24/11/2026:** hecho, sale en su próximo despliegue. Ver `respuesta-libreta-odoo.md`. Odoo ya está ajustado a la respuesta.
+
 ## Qué necesitamos, en una línea
 Que un comercio que lleva la cuenta corriente en **Odoo** pueda tener la libreta en ClubPay igual que uno de NexoPOS: que la persona vea lo que debe, lo pague con Mercado Pago y **que ese pago le llegue a Odoo**.
 
