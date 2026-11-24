@@ -12,6 +12,7 @@ cd15a2c) y de docs/RESPUESTA-PEDIDOS-ERP-A-NEXO-ODOO.md:
 Repetir un paso contesta 200 sin hacer nada; un paso que no corresponde es
 409 `paso_invalido` con el `status` actual. Importes en centavos.
 """
+import json
 import logging
 from datetime import datetime, timezone
 from urllib.parse import quote
@@ -441,7 +442,13 @@ class NexoTiendaOrder(models.Model):
             partes.append(_("Listo para: %s", self.listo_para))
         if self.revision_texto:
             partes.append(self.revision_texto)
-        return "\n".join(partes)
+        # La caja lee la nota interna como JSON: una etiqueta por renglón,
+        # igual que las que pone el cajero (`InternalNoteButton.reframeNotes`).
+        # El primero va de color para distinguir el pedido de tienda.
+        return json.dumps([
+            {'text': parte, 'colorIndex': 2 if i == 0 else 0}
+            for i, parte in enumerate(partes)
+        ], ensure_ascii=False)
 
     def _place_in_pos(self):
         """Pone el pedido en la caja abierta como una orden sin cobrar, con

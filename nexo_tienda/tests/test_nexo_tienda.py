@@ -5,6 +5,7 @@ NexoPOS (commit cd15a2c): pasos posibles, repetir contesta 200 sin hacer
 nada, un paso que no corresponde es 409 `paso_invalido` con el `status`, y el
 stock se descuenta al aceptar y vuelve al cancelar.
 """
+import json
 import copy
 from unittest.mock import patch
 
@@ -348,7 +349,9 @@ class TestNexoTiendaPos(NexoTiendaCase):
         self.assertEqual(pos_order.partner_id, order.sale_order_id.partner_id)
         self.assertEqual(pos_order.lines.sale_order_line_id, order.sale_order_id.order_line)
         self.assertAlmostEqual(pos_order.amount_total, 3620.0)
-        self.assertIn('3510000000', pos_order.internal_note)
+        # La caja la lee con JSON.parse: con texto suelto queda en blanco.
+        notas = [n['text'] for n in json.loads(pos_order.internal_note)]
+        self.assertTrue(any('3510000000' in n for n in notas))
         # Repetir la sincronización no la duplica.
         self.Order._cron_sync()
         self.assertEqual(self.env['pos.order'].search_count([('nexo_tienda_order_id', '=', order.id)]), 1)
