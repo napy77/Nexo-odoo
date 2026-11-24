@@ -145,3 +145,17 @@ Origen: brief de nexo-ecosystem (30/10/2026) y respuesta con las decisiones de G
 - **Devoluciones:** en Ventas, con «Devolver» de la transacción de Odoo (parcial o total). En la caja no: se hacen desde «Cobros con Mercado Pago» → «Devolver», solo administradores.
 - **Pagos sin venta** (se pagó pero la caja nunca cerró la venta): a los 30 min se crea una actividad para un administrador. **No se devuelven solos.** NexoPOS sí los devuelve solo; PENDIENTE DE VALIDAR con German cuál conviene.
 - **Simulador:** con el simulador de ClubPay prendido, el QR y el link no son de Mercado Pago; el pago se acredita a los 8 s (caja) o con una página de prueba (portal).
+
+## DEC-025 — Libreta de ClubPay sobre la cuenta a cobrar de Odoo (pedido de German, 24/11/2026)
+- **Lo mismo que NexoPOS:** DNI en el contacto, «Enviar invitación», y la persona acepta en la app. Nace como **propuesta**, porque en el mostrador se tipean DNI mal. **El DNI viaja una sola vez**; después se consulta sin él.
+- **La cuenta corriente es el saldo a cobrar del contacto comercial en Contabilidad** (apuntes publicados en cuentas `asset_receivable`). No hay un libro aparte. Odoo es el dueño; ClubPay espeja.
+- **`external_id` = `ODOO-<id del contacto>`, no `CLI-`.** La misma clave puede estar en NexoPOS, donde `CLI-<n>` es otro cliente: un pago iría a la cuenta de otra persona.
+- **Al aceptar se manda el saldo a la fecha como un `ajuste`**, y desde ahí cada movimiento. NexoPOS en cambio recupera los movimientos de los últimos días. Acá no se hace así porque la deuda de un cliente de Odoo puede venir de facturas de hace meses: mandar solo las recientes mostraría un saldo que no es el suyo.
+- **Cola con reintentos**, igual que NexoPOS: la fila nace al publicar, en la misma transacción, y el envío pasa después. Una factura que vuelve a borrador se anula con un `ajuste` contrario.
+- **Pagos desde la app:**
+  - Cobro del cliente en el diario «Mercado Pago (ClubPay)», imputado a la factura más vieja primero. Importe libre.
+  - Idempotente por `clubpay_payment_id`, con índice único.
+  - No se le devuelven a ClubPay.
+  - Llegan por consulta (`GET /pos/account/payments`, **PROPUESTO**, pedido a ClubPay), porque el aviso de ClubPay va a una sola URL, la de NexoPOS.
+- **Se prende por compañía** en Ajustes → ClubPay → «Libreta en ClubPay».
+
