@@ -4,3 +4,7 @@ access_nexo_clubpay_charge_pos,nexo.clubpay.charge caja,nexo.clubpay.charge,poin
 access_nexo_clubpay_charge_account,nexo.clubpay.charge contabilidad,nexo.clubpay.charge,account.group_account_invoice,r,
 access_nexo_clubpay_charge_company,nexo.clubpay.charge multi-compañía,nexo.clubpay.charge,,crud,"[('company_id', 'in', company_ids)]"
 access_nexo_clubpay_sale_qr,nexo.clubpay.sale.qr ventas,nexo.clubpay.sale.qr,sales_team.group_sale_salesman,crud,
+access_nexo_clubpay_payment_sale,nexo.clubpay.payment ventas,nexo.clubpay.payment,sales_team.group_sale_salesman,r,
+access_nexo_clubpay_payment_pos,nexo.clubpay.payment caja,nexo.clubpay.payment,point_of_sale.group_pos_user,r,
+access_nexo_clubpay_payment_account,nexo.clubpay.payment contabilidad,nexo.clubpay.payment,account.group_account_invoice,r,
+access_nexo_clubpay_payment_company,nexo.clubpay.payment multi-compañía,nexo.clubpay.payment,,crud,"[('company_id', 'in', company_ids)]"

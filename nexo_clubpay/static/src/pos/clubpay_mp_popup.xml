@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-name="nexo_clubpay.ClubPayMpPopup">
+        <Dialog size="'md'" header="false" contentClass="'o_nexo_clubpay_popup rounded-4 p-2'">
+            <t t-set="info" t-value="this.props.info"/>
+            <div class="d-flex flex-column align-items-center text-center">
+                <div t-if="info.simulated" class="alert alert-warning w-100 fw-bold mb-2">
+                    SIMULADOR: no es Mercado Pago. Se paga solo a los pocos segundos.
+                </div>
+
+                <t t-if="info.state === 'loading'">
+                    <h3 class="my-4">Pidiendo el QR de Mercado Pago…</h3>
+                </t>
+
+                <t t-elif="info.state === 'pending' or info.state === 'rejected'">
+                    <h3 class="mb-1">Pagá con Mercado Pago</h3>
+                    <div class="text-muted mb-1">Escaneá con Mercado Pago o cualquier billetera</div>
+                    <img t-if="info.qr_image" t-att-src="info.qr_image" alt="QR de Mercado Pago"
+                         style="width: 300px; height: 300px; image-rendering: pixelated;"/>
+                    <div class="fs-2 fw-bold">A pagar <t t-out="info.amount_label"/></div>
+                    <div t-if="info.state === 'rejected'" class="alert alert-warning w-100 mt-2 mb-1">
+                        <t t-out="info.error or 'Mercado Pago rechazó el pago.'"/> Puede probar con otra tarjeta con el mismo QR.
+                    </div>
+                    <div t-else="" class="text-muted">Vence a las <t t-out="this.vence"/>. Esperando el pago…</div>
+                    <div t-if="info.state === 'pending' and info.error" class="text-danger small mt-1" t-out="info.error"/>
+                </t>
+
+                <t t-elif="info.state === 'paid'">
+                    <h3 class="text-success my-4">Pagado</h3>
+                </t>
+
+                <t t-else="">
+                    <h3 class="mb-2" t-out="info.title"/>
+                    <div t-if="info.error" class="fs-5" t-out="info.error"/>
+                </t>
+            </div>
+            <t t-set-slot="footer">
+                <div class="d-flex justify-content-center w-100 gap-2 flex-wrap">
+                    <t t-if="this.props.info.state === 'pending' or this.props.info.state === 'rejected'">
+                        <button class="btn btn-secondary btn-lg" t-on-click="() => this.props.print()">Imprimir QR</button>
+                        <button class="btn btn-light btn-lg" t-on-click="() => this.props.cancel()">Cancelar</button>
+                    </t>
+                    <t t-elif="this.props.info.state !== 'loading' and this.props.info.state !== 'paid'">
+                        <button t-if="this.props.info.state === 'expired' or this.props.info.state === 'error'" class="btn btn-primary btn-lg" t-on-click="() => this.props.retry()">Generar otro</button>
+                        <button class="btn btn-light btn-lg" t-on-click="() => this.props.cancel()">Cobrar con otro medio</button>
+                    </t>
+                </div>
+            </t>
+        </Dialog>
+    </t>
+</templates>

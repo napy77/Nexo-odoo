@@ -41,6 +41,20 @@
                             <field name="nexo_clubpay_simulator"/>
                         </setting>
                     </block>
+                    <block title="Cobros con Mercado Pago" name="nexo_clubpay_mp">
+                        <setting id="nexo_clubpay_mp" string="Cobrar con Mercado Pago a través de ClubPay"
+                                 help="Usa el Mercado Pago que el comercio conectó en ClubPay: Odoo no guarda credenciales de Mercado Pago. En la caja, un QR que lee Mercado Pago o cualquier billetera, también para el resto después del cupón. En Ventas, el cliente paga el presupuesto desde el portal. Hace falta tener prendido «Cobrar también desde NexoPOS y NexoTienda» en ClubPay › Cobros.">
+                            <field name="nexo_clubpay_mp"/>
+                            <div class="content-group mt8" invisible="not nexo_clubpay_mp">
+                                <div class="row">
+                                    <label for="nexo_clubpay_mp_journal_id" class="col-lg-4 o_light_label"/>
+                                    <field name="nexo_clubpay_mp_journal_id" readonly="1"/>
+                                </div>
+                                <div class="text-muted">Después de guardar, tocá «Crear y sumar a las cajas».</div>
+                                <button name="action_nexo_clubpay_payments" type="object" string="Ver cobros" class="btn-link" icon="east"/>
+                            </div>
+                        </setting>
+                    </block>
                 </app>
             </xpath>
         </field>

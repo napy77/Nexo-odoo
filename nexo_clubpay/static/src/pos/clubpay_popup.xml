@@ -44,7 +44,8 @@
                         <button class="btn btn-light btn-lg" t-on-click="() => this.props.cancel()">Cancelar</button>
                     </t>
                     <t t-elif="this.props.info.state === 'applied'">
-                        <button class="btn btn-primary btn-lg" t-on-click="() => this.props.accept()">Aplicar cupón</button>
+                        <button t-if="this.props.info.mp_available" class="btn btn-primary btn-lg" t-on-click="() => this.props.acceptMp()">Cobrar el resto con Mercado Pago</button>
+                        <button t-att-class="this.props.info.mp_available ? 'btn btn-secondary btn-lg' : 'btn btn-primary btn-lg'" t-on-click="() => this.props.accept()">Aplicar cupón</button>
                     </t>
                     <t t-elif="this.props.info.state !== 'loading'">
                         <button t-if="this.props.info.state === 'expired'" class="btn btn-primary btn-lg" t-on-click="() => this.props.retry()">Generar otro</button>

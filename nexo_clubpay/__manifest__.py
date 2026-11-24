@@ -1,7 +1,7 @@
 {
     'name': 'Nexo · Descuentos ClubPay',
-    'version': '20.0.1.0.0',
-    'summary': 'Descuento de socios de ClubPay con QR, en el Punto de Venta y en Ventas',
+    'version': '20.0.1.1.0',
+    'summary': 'Descuento de socios de ClubPay y cobro con Mercado Pago vía ClubPay, en el Punto de Venta y en Ventas',
     'description': """
 El socio escanea un QR con la app de ClubPay y confirma; ClubPay decide el
 descuento y Odoo aplica lo que contesta. Igual que en NexoPOS:
@@ -13,6 +13,10 @@ descuento y Odoo aplica lo que contesta. Igual que en NexoPOS:
   entra como cupón al facturar.
 
 El descuento no achica la venta: es una forma de pago (DEC-023).
+
+Con «Cobrar con Mercado Pago a través de ClubPay» (DEC-024), el resto se cobra
+con el Mercado Pago que el comercio conectó en ClubPay: un QR en la caja y
+«Pagar» en el portal. Odoo no guarda credenciales de Mercado Pago.
 """,
     'category': 'Sales/Point of Sale',
     'author': 'Linware',
@@ -24,6 +28,7 @@ El descuento no achica la venta: es una forma de pago (DEC-023).
         'report/clubpay_qr_report.xml',
         'wizard/nexo_clubpay_sale_qr_views.xml',
         'views/nexo_clubpay_charge_views.xml',
+        'views/nexo_clubpay_payment_views.xml',
         'views/sale_order_views.xml',
         'views/sale_portal_templates.xml',
         'views/res_config_settings_views.xml',

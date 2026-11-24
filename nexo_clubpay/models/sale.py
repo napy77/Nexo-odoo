@@ -26,6 +26,16 @@ class SaleOrder(models.Model):
             order.clubpay_total_changed = bool(charge) and float_compare(
                 charge.ticket_total, order.amount_total, precision_rounding=order.currency_id.rounding or 0.01) != 0
 
+    @api.depends('clubpay_charge_ids.state', 'clubpay_charge_ids.discount')
+    def _compute_amount_paid(self):
+        """El cupón de ClubPay cuenta como pagado. Así el portal cobra el neto
+        con Mercado Pago, y el pedido se confirma y se da por pagado cuando el
+        cupón más el pago cubren el total (DEC-024)."""
+        super()._compute_amount_paid()
+        for order in self:
+            charge = order.sudo().clubpay_charge_ids.filtered(lambda c: c.state == 'applied')[:1]
+            order.amount_paid += charge.discount
+
     @api.depends('company_id', 'state', 'invoice_status')
     def _compute_clubpay_available(self):
         Charge = self.env['nexo.clubpay.charge']

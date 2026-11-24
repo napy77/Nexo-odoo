@@ -18,6 +18,7 @@ export class ClubPayPopup extends Component {
         print: t.function(),
         cancel: t.function(),
         accept: t.function(),
+        acceptMp: t.function(),
         retry: t.function(),
         close: t.function(),
     });

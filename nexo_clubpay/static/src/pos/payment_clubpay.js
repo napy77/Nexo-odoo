@@ -62,7 +62,7 @@ export class PaymentClubPay extends PaymentInterface {
                 total: order.totalDue,
                 resolve,
                 timer: null,
-                info: proxy({ state: "loading" }),
+                info: proxy({ state: "loading", mp_available: Boolean(this.mpMethod()) }),
             };
             this.flow.close = this.dialog.add(
                 ClubPayPopup,
@@ -71,6 +71,7 @@ export class PaymentClubPay extends PaymentInterface {
                     print: () => this.print(),
                     cancel: () => this.finish(false),
                     accept: () => this.accept(),
+                    acceptMp: () => this.accept({ thenMp: true }),
                     retry: () => this.create(),
                 },
                 { onClose: () => this.finish(false, { fromDialog: true }) }
@@ -152,11 +153,19 @@ export class PaymentClubPay extends PaymentInterface {
         }
     }
 
-    accept() {
+    /** La forma de pago «Mercado Pago (ClubPay)» de esta caja, si la tiene. */
+    mpMethod() {
+        return this.pos.config.payment_method_ids.find((pm) => pm.payment_provider === "clubpay_mp");
+    }
+
+    accept({ thenMp = false } = {}) {
         const flow = this.flow;
         if (!flow || flow.info.state !== "applied") {
             return;
         }
+        // La pantalla de pago lo lee al terminar y agrega la línea de Mercado
+        // Pago por lo que falta (ver el patch de abajo).
+        this.nextMp = thenMp ? this.mpMethod() : null;
         const { line, info } = flow;
         line.setAmount(info.discount);
         line.transaction_id = info.charge_id;
@@ -240,15 +249,25 @@ export class PaymentClubPay extends PaymentInterface {
 
 registry.category("pos_payment_providers").add("clubpay", PaymentClubPay);
 
-// Al elegir «Cupón ClubPay» el QR sale solo, sin tocar «Enviar»: en la fila no
-// hay tiempo para un paso de más.
+// Al elegir «Cupón ClubPay» o «Mercado Pago (ClubPay)» el QR sale solo, sin
+// tocar «Enviar»: en la fila no hay tiempo para un paso de más. Después del
+// cupón, «Cobrar el resto con Mercado Pago» agrega esa línea por lo que falta.
+const AUTO = ["clubpay", "clubpay_mp"];
 patch(PaymentScreen.prototype, {
     async addNewPaymentLine(paymentMethod) {
         const added = await super.addNewPaymentLine(...arguments);
-        if (added && paymentMethod.payment_provider === "clubpay") {
+        if (added && AUTO.includes(paymentMethod.payment_provider)) {
             const line = this.paymentLines.at(-1);
             if (line?.payment_method_id === paymentMethod) {
                 await this.sendPaymentRequest(line);
+                const terminal = paymentMethod.payment_interface;
+                const next = terminal?.nextMp;
+                if (terminal) {
+                    terminal.nextMp = null;
+                }
+                if (next && line.isDone() && this.currentOrder.hasRemainingDue) {
+                    await this.addNewPaymentLine(next);
+                }
             }
         }
         return added;
