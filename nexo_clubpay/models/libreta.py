@@ -294,7 +294,7 @@ class NexoClubpayLibretaLine(models.Model):
     move_line_id = fields.Many2one('account.move.line', 'Apunte', readonly=True, index='btree_not_null',
                                    ondelete='set null')
     move_id = fields.Many2one('account.move', 'Asiento', readonly=True, ondelete='set null')
-    movement_id = fields.Char(required=True, readonly=True)
+    movement_id = fields.Char('Movimiento', required=True, readonly=True)
     kind = fields.Selection(KINDS, 'Tipo', required=True, readonly=True)
     amount = fields.Monetary('Importe', readonly=True, help="Positivo aumenta la deuda; negativo la baja")
     occurred_at = fields.Datetime('Fecha', required=True, readonly=True)
@@ -308,7 +308,7 @@ class NexoClubpayLibretaLine(models.Model):
     ], 'Estado', default='pending', required=True, readonly=True, index=True)
     attempts = fields.Integer('Intentos', readonly=True)
     next_try = fields.Datetime('Próximo intento', readonly=True)
-    error = fields.Char(readonly=True)
+    error = fields.Char('Error', readonly=True)
     reversed = fields.Boolean('Anulado y avisado', readonly=True)
 
     _movement_unique = models.Constraint('UNIQUE(company_id, movement_id)',

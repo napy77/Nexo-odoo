@@ -82,6 +82,9 @@ class TestLibreta(ClubPayCase):
         super().setUp()
         self.Charge.set_key(KEY)
         self.Line = self.env['nexo.clubpay.libreta.line']
+        # Lo que dejó el cron de la base de prueba no cuenta: cada test pide desde cero.
+        self.env['ir.config_parameter'].sudo().search(
+            [('key', '=like', 'nexo_clubpay.libreta_pagos_desde.%')]).unlink()
         self.env['res.config.settings'].create({'nexo_clubpay_libreta': True}).execute()
         self.partner = self.env['res.partner'].create({'name': 'German Yovan', 'nexo_clubpay_dni': '26098535'})
         if self.env.ref('l10n_ar.par_cfa', raise_if_not_found=False):
@@ -269,7 +272,7 @@ class TestLibreta(ClubPayCase):
         self.Line._cron_libreta()
         self.assertEqual(self.fake.payment_queries, ['', t1], "El + de la fecha viaja bien codificado")
         Pay = self.env['nexo.clubpay.libreta.payment']
-        self.assertEqual(sorted(Pay.search([]).mapped('name')), ['pay_20', 'pay_21'])
+        self.assertEqual(sorted(Pay.search([('partner_id', '=', self.partner.id)]).mapped('name')), ['pay_20', 'pay_21'])
         self.assertEqual(Pay.search([('name', '=', 'pay_20')]).mp_payment_id, '1234567890')
         self.assertEqual(self.env['ir.config_parameter'].sudo().get_str(
             f'nexo_clubpay.libreta_pagos_desde.{self.env.company.id}'), t2)
