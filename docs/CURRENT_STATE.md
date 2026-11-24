@@ -245,11 +245,18 @@ Lo mismo que hace NexoPOS con su cuenta corriente, sobre el saldo a cobrar de Co
   - `_register` es un atributo reservado de los modelos de Odoo: el método de los pagos desde la app pasó a `_record_app_payment`.
   - Una anulación ya avisada se volvía a anular en cada corrida del cron, y lo mismo le habría pasado al saldo inicial. Ahora solo se anulan movimientos que salieron de un apunte (`-aml-`) y que no son anulaciones.
   - En los tests: el DNI va en `additional_identifiers` (`AR_DNI`), porque Odoo 20 no tiene `l10n_latam_base`. Además, el patch de ClubPay se hace una sola vez.
-- **Sin probar en el navegador:** la solapa del contacto, «Enviar invitación» y los botones del simulador.
+- **Probado en el navegador con el simulador (24/11/2026, al sacar las capturas):** la solapa del contacto, «Enviar invitación», «Simular que aceptó», «Simular pago desde la app» y la lista de movimientos. Falta con ClubPay real.
+- **ClubPay ya contestaría `GET /pos/account/payments`:** en `nexo_test_ci` quedó guardado `desde = 1970-01-01T00:00:00.000Z`, y Odoo solo lo guarda con una respuesta 200 (el cron del servidor de prueba con la clave de Jure). PENDIENTE DE VALIDAR con ClubPay que ya desplegó; `hasta` en 1970 parece ser su respuesta sin pagos.
+- Los tests de la libreta ya no dependen de lo que dejó ese cron en la base (borran el `desde` guardado y cuentan solo los pagos de su cliente).
 - Partes de Odoo 20 que se usan sin haberlas mirado en el `addons/` instalado: el `button_box` del formulario de contacto, `account.menu_finance_receivables`, `account.payment.register` con importe parcial y el campo `memo` del pago (con alternativa a `ref`).
 - Una venta de caja facturada y pagada en efectivo a un cliente con libreta aparece en la app como compra y pago del mismo día. El saldo queda bien. PENDIENTE DE VALIDAR con German si se filtra.
 - **`ODOO-<id>`:** ClubPay lo acepta. Si la persona ya tiene la libreta de NexoPOS en el mismo comercio, la invitación da 409 y Odoo muestra el motivo de ClubPay (probado con ClubPay simulado). El comercio lleva la libreta en un solo sistema.
 - **Prueba con ClubPay real:** cuando ClubPay avise que desplegó. Usa la clave de Jure en `nexo_test_ci` y tiene cinco pasos; el quinto es invitar como `ODOO-…` a alguien que ya tiene una `CLI-` y ver el 409. Toca datos reales de ClubPay, así que la hace German.
+
+## Capturas para las webs de NexoPOS, NexoB2B y ClubPay (24/11/2026)
+- En `capturas/` (fuera de git por ahora), 2880×1800, sacadas en `nexo_test_ci` con nombre de demo («Almacén Demo», clientes de ejemplo). La base volvió a Jure Hnos SRL y el simulador de ClubPay quedó apagado.
+- Al sacarlas, varias columnas de `nexo_clubpay` salían en inglés («Origin», «State», «Channel»…): ahora tienen etiqueta en español.
+- Quedan en la base de prueba los pedidos, facturas y clientes de demo (S00425 a S00427, «Pedro Gómez», «Ana Torres») y el usuario «demo.capturas» archivado.
 
 ## Compras vía NexoB2B (23/11/2026)
 **IMPLEMENTADO en código, con tests:**
