@@ -15,7 +15,7 @@ Actualizado al 24/11/2026. Se lee al empezar cada tarea y se actualiza al termin
 | Pedidos de NexoTienda en la caja de Odoo (`nexo_tienda`) | PARCIAL: tests con NexoPOS simulado; **lectura y pasos aceptar/listo/entregado probados contra NexoPOS real** (P-0962559F de Jure, los pasos los hizo German); **el pedido entra solo a la caja abierta** (P-3C1D1EBC); cobrarlo en la caja sin probar |
 | Descuento de ClubPay en la caja y en Ventas (`nexo_clubpay`) | PARCIAL: probado con el simulador y **con la clave real de Jure, cargada por German, que confirmó el circuito** (24/11/2026) |
 | Mercado Pago a través de ClubPay (`nexo_clubpay`, DEC-024) | PARCIAL: caja y portal probados en navegador **solo con el simulador**; **sin un cobro real de Mercado Pago** |
-| Libreta del cliente en ClubPay (`nexo_clubpay`, DEC-025) | PARCIAL: instalada en `nexo_test_ci` el 24/11/2026, 13 tests pasando; **sin probar en el navegador ni contra ClubPay real**. Los pagos desde la app **no llegan a Odoo** hasta que ClubPay construya `GET /pos/account/payments` (pedido enviado) |
+| Libreta del cliente en ClubPay (`nexo_clubpay`, DEC-025) | PARCIAL: instalada en `nexo_test_ci` el 24/11/2026, 15 tests pasando; **sin probar en el navegador ni contra ClubPay real**. Los pagos desde la app llegan por `GET /pos/account/payments`: **ClubPay la confirmó y sale en su próximo despliegue**; hasta entonces da 404 |
 | Acceso al Odoo 20 de Linware | IMPLEMENTADO (SSH con llave, lectura sin `sudo`) |
 | Base de prueba en Odoo 20 | PENDIENTE DE VALIDAR (todavía no existe) |
 | Acceso a la API de NexoB2B | IMPLEMENTADO: host `https://nexob2b.app`; la clave y el usuario los carga German en Ajustes de la base de prueba |
@@ -235,19 +235,21 @@ Lo mismo que hace NexoPOS con su cuenta corriente, sobre el saldo a cobrar de Co
 - Se registran como cobro del cliente en el diario «Mercado Pago (ClubPay)».
 - Se imputan primero a la factura más vieja, y lo que sobra queda a favor del cliente.
 - No se le devuelven a ClubPay como movimiento.
-- **Hoy no llegan:** ClubPay avisa solo a NexoPOS. Odoo ya pregunta `GET /pos/account/payments` y sigue de largo con el 404. Pedido en `PARA-CLUBPAY_de-NEXO-ODOO_libreta-en-odoo.md`. Mientras tanto, el comercio los registra a mano.
+- **Todavía no llegan:** ClubPay avisa solo a NexoPOS. Odoo pregunta `GET /pos/account/payments` y sigue de largo con el 404. ClubPay la confirmó el 24/11/2026 (`respuesta-libreta-odoo.md`) y avisa cuando la despliegue. Mientras tanto, el comercio registra estos pagos a mano.
+- Odoo sigue las páginas (`hay_mas`), descarta los repetidos del margen de 2 minutos, saltea los pagos de NexoPOS (`CLI-`) y guarda el número de pago de Mercado Pago.
 
 **Simulador:** un DNI terminado en 0 da «sin cuenta», cualquier otro queda propuesto. En el contacto aparecen «Simular que aceptó» y «Simular pago desde la app» (por todo lo que debe, o $10.000).
 
 **Sin verificar:**
-- **Tests en Odoo 20 (24/11/2026):** se instaló en `nexo_test_ci` y los 13 pasan (84 en total con los otros módulos). Al correrlos aparecieron y se corrigieron:
+- **Tests en Odoo 20 (24/11/2026):** se instaló en `nexo_test_ci` y pasan (hoy 15 de la libreta, 86 en total con los otros módulos). Al correrlos aparecieron y se corrigieron:
   - `_register` es un atributo reservado de los modelos de Odoo: el método de los pagos desde la app pasó a `_record_app_payment`.
   - Una anulación ya avisada se volvía a anular en cada corrida del cron, y lo mismo le habría pasado al saldo inicial. Ahora solo se anulan movimientos que salieron de un apunte (`-aml-`) y que no son anulaciones.
   - En los tests: el DNI va en `additional_identifiers` (`AR_DNI`), porque Odoo 20 no tiene `l10n_latam_base`. Además, el patch de ClubPay se hace una sola vez.
 - **Sin probar en el navegador:** la solapa del contacto, «Enviar invitación» y los botones del simulador.
 - Partes de Odoo 20 que se usan sin haberlas mirado en el `addons/` instalado: el `button_box` del formulario de contacto, `account.menu_finance_receivables`, `account.payment.register` con importe parcial y el campo `memo` del pago (con alternativa a `ref`).
 - Una venta de caja facturada y pagada en efectivo a un cliente con libreta aparece en la app como compra y pago del mismo día. El saldo queda bien. PENDIENTE DE VALIDAR con German si se filtra.
-- `external_id` `ODOO-<id>`: falta que ClubPay confirme que lo acepta, y qué pasa si la persona ya tiene la libreta de NexoPOS en el mismo comercio.
+- **`ODOO-<id>`:** ClubPay lo acepta. Si la persona ya tiene la libreta de NexoPOS en el mismo comercio, la invitación da 409 y Odoo muestra el motivo de ClubPay (probado con ClubPay simulado). El comercio lleva la libreta en un solo sistema.
+- **Prueba con ClubPay real:** cuando ClubPay avise que desplegó. Usa la clave de Jure en `nexo_test_ci` y tiene cinco pasos; el quinto es invitar como `ODOO-…` a alguien que ya tiene una `CLI-` y ver el 409. Toca datos reales de ClubPay, así que la hace German.
 
 ## Compras vía NexoB2B (23/11/2026)
 **IMPLEMENTADO en código, con tests:**

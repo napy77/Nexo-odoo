@@ -6,6 +6,7 @@ ruta que le pedimos a ClubPay: todavía no existe y el fake la contesta con 404
 salvo que el test cargue pagos.
 """
 import copy
+from urllib.parse import parse_qs, urlsplit
 
 from odoo import Command, fields
 from odoo.exceptions import UserError
@@ -23,6 +24,9 @@ class FakeLibreta(FakeClubPay):
         self.customers = {}
         self.movements = {}
         self.app_payments = None  # None = la ruta no existe todavía
+        self.app_pages = None  # varias páginas: [(desde, hasta, pagos), ...]
+        self.payment_queries = []
+        self.cli_dnis = {}  # DNI con libreta de NexoPOS en el mismo comercio
 
     def accept(self, external_id):
         self.customers[external_id]['status'] = 'vinculada'
@@ -36,6 +40,11 @@ class FakeLibreta(FakeClubPay):
             raise NexoError('auth', service='ClubPay', status=401)
         if self.fail:
             raise NexoError(self.fail, service='ClubPay')
+        if method == 'POST' and path == '/pos/customers' and json_body['dni'] in self.cli_dnis:
+            cli = self.cli_dnis[json_body['dni']]
+            raise NexoError('client', service='ClubPay', status=409,
+                            detail=f"Esta persona ya tiene la libreta de este comercio con el número de cliente "
+                                   f"{cli}. El comercio lleva la libreta en un solo sistema.")
         if method == 'POST' and path == '/pos/customers':
             if json_body['dni'].endswith('0'):
                 return {'encontrado': False, 'status': 'sin_cuenta', 'mensaje': 'El DNI no tiene cuenta en ClubPay'}
@@ -51,6 +60,14 @@ class FakeLibreta(FakeClubPay):
             self.movements[json_body['movement_id']] = json_body
             return {'ok': True}
         if method == 'GET' and path.startswith('/pos/account/payments'):
+            desde = parse_qs(urlsplit(path).query).get('desde', [''])[0]
+            self.payment_queries.append(desde)
+            if self.app_pages is not None:
+                for since, until, pagos in self.app_pages:
+                    if since == desde:
+                        last = self.app_pages[-1][1] == until
+                        return {'pagos': pagos, 'hasta': until, 'hay_mas': not last}
+                raise AssertionError(f"desde inesperado: {desde!r}")
             if self.app_payments is None:
                 raise NexoError('not_found', service='ClubPay', status=404)
             return {'pagos': self.app_payments, 'hasta': '2099-01-01T00:00:00Z', 'hay_mas': False}
@@ -232,6 +249,36 @@ class TestLibreta(ClubPayCase):
         self.assertEqual(invoice.amount_residual, 0.0)
         self.assertIn(invoice.payment_state, ('paid', 'in_payment'))
         self.assertAlmostEqual(sum(pay.account_payment_ids.mapped('amount')), invoice.amount_total + 50)
+
+    def test_payments_from_app_in_pages(self):
+        """Con `hay_mas` se sigue desde `hasta`; los repetidos de los dos
+        minutos de margen no se registran dos veces; `odoo-` en minúscula vale,
+        y los de NexoPOS se saltean."""
+        self._link()
+        self._invoice(5000.0)
+        self.Line._cron_libreta()
+        pay = {'clubpay_payment_id': 'pay_20', 'external_id': self.ext.lower(), 'amount_cents': 10000,
+               'paid_at': '2099-01-01T00:00:00Z', 'mp_payment_id': '1234567890'}
+        t1, t2 = '2099-01-01T00:00:00+00:00', '2099-01-01T00:05:00+00:00'
+        self.fake.app_pages = [
+            ('', t1, [pay, {'clubpay_payment_id': 'pay_cli', 'external_id': 'CLI-12', 'amount_cents': 500,
+                            'paid_at': '2099-01-01T00:00:00Z'}]),
+            (t1, t2, [pay, dict(pay, clubpay_payment_id='pay_21', mp_payment_id='1234567891')]),
+        ]
+        self.fake.payment_queries.clear()
+        self.Line._cron_libreta()
+        self.assertEqual(self.fake.payment_queries, ['', t1], "El + de la fecha viaja bien codificado")
+        Pay = self.env['nexo.clubpay.libreta.payment']
+        self.assertEqual(sorted(Pay.search([]).mapped('name')), ['pay_20', 'pay_21'])
+        self.assertEqual(Pay.search([('name', '=', 'pay_20')]).mp_payment_id, '1234567890')
+        self.assertEqual(self.env['ir.config_parameter'].sudo().get_str(
+            f'nexo_clubpay.libreta_pagos_desde.{self.env.company.id}'), t2)
+
+    def test_dni_with_nexopos_libreta_is_refused(self):
+        self.fake.cli_dnis['26098535'] = 'CLI-12'
+        with self.assertRaisesRegex(UserError, "CLI-12"):
+            self.partner.action_nexo_clubpay_invite()
+        self.assertFalse(self.partner.nexo_clubpay_status, "No queda como invitado")
 
     def test_missing_payments_route_does_not_break(self):
         self._link()

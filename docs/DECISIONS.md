@@ -156,6 +156,7 @@ Origen: brief de nexo-ecosystem (30/10/2026) y respuesta con las decisiones de G
   - Cobro del cliente en el diario «Mercado Pago (ClubPay)», imputado a la factura más vieja primero. Importe libre.
   - Idempotente por `clubpay_payment_id`, con índice único.
   - No se le devuelven a ClubPay.
-  - Llegan por consulta (`GET /pos/account/payments`, **PROPUESTO**, pedido a ClubPay), porque el aviso de ClubPay va a una sola URL, la de NexoPOS.
+  - Llegan por consulta (`GET /pos/account/payments`, confirmada por ClubPay el 24/11/2026, sale en su próximo despliegue), porque el aviso de ClubPay va a una sola URL, la de NexoPOS. ClubPay no le avisa a NexoPOS nada de un `ODOO-…`.
+  - Una persona tiene la libreta en un solo sistema por comercio. Si ya la tiene en NexoPOS, ClubPay rechaza la invitación de Odoo con 409.
 - **Se prende por compañía** en Ajustes → ClubPay → «Libreta en ClubPay».
 

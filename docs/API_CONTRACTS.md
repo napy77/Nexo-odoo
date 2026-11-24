@@ -149,6 +149,13 @@ Fuente: `nexopos/docs/CLUBPAY-CUENTA-CORRIENTE.md` (contrato acordado con NexoPO
 - `GET /pos/customers/:external_id` → el mismo estado y `account_id`, sin mandar el DNI.
 - `POST /pos/account/movements {external_id, movement_id, kind, amount_cents, occurred_at, description}`. `kind`: `compra`, `pago`, `ajuste` o `devolucion`. Positivo aumenta la deuda. Idempotente por `movement_id`. Contesta 200 aunque no lo registre.
 - Odoo manda `external_id` = `ODOO-<id>` y `movement_id` = `odoo-<base>-aml-<id>` (o `…-saldo-…`, `…-anulado`).
-- **PROPUESTO, no existe todavía:** `GET /pos/account/payments?desde=<ISO>` → `{pagos: [{clubpay_payment_id, external_id, amount_cents, paid_at, mp_payment_id}], hasta, hay_mas}`. Ver `PARA-CLUBPAY_de-NEXO-ODOO_libreta-en-odoo.md`.
+- **Confirmada por ClubPay el 24/11/2026, sale en su próximo despliegue** (`respuesta-libreta-odoo.md`): `GET /pos/account/payments?desde=<ISO>` → `{pagos: [{clubpay_payment_id, external_id, amount_cents, paid_at, mp_payment_id, statement_id?}], hasta, hay_mas}`. IMPLEMENTADO en Odoo, probado solo con ClubPay simulado.
+  - Repite los pagos de los 2 minutos anteriores a `desde`: el índice único por `clubpay_payment_id` los descarta.
+  - Trae también los pagos de libretas `CLI-` (NexoPOS) del mismo comercio. Odoo toma solo `ODOO-`, en mayúsculas o minúsculas.
+  - Devuelve hasta 200 por página. Con `hay_mas`, Odoo vuelve a pedir con `desde = hasta`, hasta 10 páginas por corrida. Sin `desde`, devuelve desde el principio; una fecha que no es ISO da 400.
+  - Odoo ignora `statement_id`: no manda resúmenes e imputa de la factura más vieja a la más nueva.
+- **A NexoPOS no se le avisa nada de un `ODOO-…`**, ni pagos ni vinculaciones. El prefijo tiene que ser exactamente `ODOO-`.
+- **`external_id`** es texto libre, hasta 120 caracteres.
+- **Una persona que ya tiene la libreta de NexoPOS** (`CLI-…`) en el mismo comercio: `POST /pos/customers` contesta 409 con el motivo. Odoo lo muestra tal cual. Vale también al revés.
 - **Sin webhook para Odoo:** ClubPay avisa la vinculación y los pagos a `NEXOPOS_WEBHOOK_URL`. Odoo pregunta.
 

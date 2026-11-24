@@ -1,6 +1,6 @@
 {
     'name': 'Nexo · Descuentos ClubPay',
-    'version': '20.0.1.2.0',
+    'version': '20.0.1.2.1',
     'summary': 'Descuento de socios de ClubPay, cobro con Mercado Pago vía ClubPay y libreta del cliente en la app',
     'description': """
 El socio escanea un QR con la app de ClubPay y confirma; ClubPay decide el

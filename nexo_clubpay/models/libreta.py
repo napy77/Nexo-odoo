@@ -26,15 +26,20 @@ Lo que no se negocia (DEC-025):
   sale por red después, con reintentos.
 - **Un pago que vino de ClubPay no se le devuelve a ClubPay**: lo originó ella.
 
-Lo que falta del lado de ClubPay (pedido en `docs/PARA-CLUBPAY_de-NEXO-ODOO_
-libreta-en-odoo.md`): ClubPay avisa los pagos y las vinculaciones a una sola URL
-de la plataforma, la de NexoPOS. Odoo no se entera; pregunta. La vinculación ya
-se puede preguntar. Los pagos todavía no: `GET /pos/account/payments` es una
-ruta PROPUESTA, y hasta que exista el cron la intenta y sigue.
+ClubPay avisa los pagos y las vinculaciones a una sola URL de la plataforma,
+la de NexoPOS. Odoo no se entera; pregunta. Pedido en `docs/PARA-CLUBPAY_de-
+NEXO-ODOO_libreta-en-odoo.md`, respuesta en `docs/respuesta-libreta-odoo.md`
+(24/11/2026):
+- `GET /pos/account/payments?desde=` está hecha y sale en el próximo despliegue
+  de ClubPay. Hasta entonces el cron la intenta, recibe 404 y sigue.
+- A NexoPOS no se le avisa nada de un `ODOO-…`.
+- Si la persona ya tiene la libreta de NexoPOS (`CLI-…`) en el mismo comercio,
+  `POST /pos/customers` contesta 409 con el motivo, y se muestra tal cual.
 """
 import logging
 import re
 from datetime import timedelta, timezone
+from urllib.parse import quote
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -58,6 +63,8 @@ REINTENTO_LARGO_MIN = 360
 MAX_INTENTOS = 12
 # Mientras ClubPay no avise a Odoo, se pregunta por las invitaciones pendientes.
 DIAS_PREGUNTANDO = 30
+# Páginas de pagos desde la app por corrida (200 cada una): lo que sobre, en la próxima.
+MAX_PAGES = 10
 
 
 def _external_id(partner):
@@ -547,6 +554,7 @@ class NexoClubpayLibretaPayment(models.Model):
     partner_id = fields.Many2one('res.partner', 'Cliente', required=True, readonly=True, index=True)
     amount = fields.Monetary('Importe', readonly=True)
     paid_at = fields.Datetime('Pagado el', readonly=True)
+    mp_payment_id = fields.Char('Pago en Mercado Pago', readonly=True)
     account_payment_ids = fields.Many2many('account.payment', string='Cobros en Contabilidad', readonly=True)
     simulated = fields.Boolean('Simulador', readonly=True)
 
@@ -559,7 +567,7 @@ class NexoClubpayLibretaPayment(models.Model):
         existing = self.sudo().search([('company_id', '=', company.id), ('name', '=', data['clubpay_payment_id'])])
         if existing:
             return existing
-        match = re.fullmatch(r'ODOO-(\d+)', data.get('external_id') or '')
+        match = re.fullmatch(r'ODOO-(\d+)', data.get('external_id') or '', re.IGNORECASE)
         partner = self.env['res.partner'].sudo().browse(int(match.group(1))).exists() if match else None
         if not partner or partner.nexo_clubpay_company_id != company:
             raise UserError(_("El pago %(p)s de ClubPay es de un cliente que no está en esta base (%(c)s).",
@@ -570,6 +578,7 @@ class NexoClubpayLibretaPayment(models.Model):
         pay = self.sudo().create({
             'name': data['clubpay_payment_id'], 'company_id': company.id, 'partner_id': partner.id,
             'amount': amount, 'paid_at': _parse_dt(data.get('paid_at')) or fields.Datetime.now(),
+            'mp_payment_id': data.get('mp_payment_id') or False,
             'simulated': simulated,
         })
         pay._post_payments(journal)
@@ -618,26 +627,40 @@ class NexoClubpayLibretaPayment(models.Model):
 
     @api.model
     def _fetch(self, company):
-        """PROPUESTO: `GET /pos/account/payments?desde=` todavía no existe en
-        ClubPay (ver el pedido). Hasta entonces contesta 404 y se sigue."""
+        """`GET /pos/account/payments?desde=`. ClubPay lo confirmó el 24/11/2026
+        (`docs/respuesta-libreta-odoo.md`) y sale en su próximo despliegue;
+        hasta entonces contesta 404 y se sigue.
+
+        - Repite los pagos de los dos minutos antes de `desde`, para no perder
+          uno que se aprobaba justo: el índice único los descarta.
+        - Trae las libretas de NexoPOS (`CLI-`) del mismo comercio: se saltean.
+        - Hasta 200 por página; con `hay_mas` se vuelve a pedir desde `hasta`.
+        """
         if self.env['nexo.clubpay.charge']._simulator(company):
             return  # con el simulador, el pago se simula desde el contacto
         param = f'nexo_clubpay.libreta_pagos_desde.{company.id}'
-        since = self.env['ir.config_parameter'].sudo().get_str(param) or ''
-        try:
-            data = self.env['nexo.clubpay.libreta.line']._call(
-                'GET', '/pos/account/payments' + (f'?desde={since}' if since else ''), company=company)
-        except NexoError as e:
-            if e.kind == 'not_found':
-                _logger.info("ClubPay todavía no tiene GET /pos/account/payments: los pagos desde la app no "
-                             "llegan a Odoo.")
+        ICP = self.env['ir.config_parameter'].sudo()
+        since = ICP.get_str(param) or ''
+        for _page in range(MAX_PAGES):
+            path = '/pos/account/payments' + (f'?desde={quote(since, safe="")}' if since else '')
+            try:
+                data = self.env['nexo.clubpay.libreta.line']._call('GET', path, company=company)
+            except NexoError as e:
+                if e.kind == 'not_found':
+                    _logger.info("ClubPay todavía no tiene GET /pos/account/payments: los pagos desde la app no "
+                                 "llegan a Odoo.")
+                    return
+                raise
+            for item in data.get('pagos') or []:
+                if not (item.get('external_id') or '').upper().startswith('ODOO-'):
+                    continue  # son de NexoPOS: ClubPay ya se los avisa a NexoPOS
+                # Si uno falla, el error sube y `desde` no avanza: la próxima
+                # corrida lo vuelve a traer. Un pago no se saltea en silencio.
+                self._record_app_payment(item, company)
+            until = data.get('hasta')
+            if until:
+                ICP.set_str(param, until)
+            # Sin avance no se pide de nuevo: sería la misma página.
+            if not data.get('hay_mas') or not until or until == since:
                 return
-            raise
-        for item in data.get('pagos') or []:
-            if not (item.get('external_id') or '').startswith('ODOO-'):
-                continue  # son de NexoPOS: ClubPay ya se los avisa a NexoPOS
-            # Si uno falla, el error sube y `desde` no avanza: la próxima corrida
-            # lo vuelve a traer. Un pago no se saltea en silencio.
-            self._record_app_payment(item, company)
-        if data.get('hasta'):
-            self.env['ir.config_parameter'].sudo().set_str(param, data['hasta'])
+            since = until
