@@ -132,3 +132,16 @@ Origen: brief de nexo-ecosystem (30/10/2026) y respuesta con las decisiones de G
 - **Ventas:** el QR no va en el mail porque vence a los 3 minutos. El cliente lo genera desde el portal cuando lo va a usar. Cada intento es un cobro nuevo, y uno nuevo cancela el pendiente.
 - **Sin anulación:** ClubPay no tiene cómo anular un descuento aplicado. Si el socio ya confirmó, el cupón se aplica aunque el cajero cancele. La caja no hace devoluciones con ClubPay.
 - **PENDIENTE DE VALIDAR con German:** cómo se concilia el diario «Cupones ClubPay» con lo que ClubPay le paga al comercio.
+
+## DEC-024 — Mercado Pago a través de ClubPay, sin credenciales de Mercado Pago en Odoo (pedido de German, 24/11/2026)
+- **Odoo no se integra con Mercado Pago.** Cobra con el Mercado Pago que el comercio ya conectó en ClubPay, con la misma clave `pos_…` (rutas `/pos/payments`). No se usa el módulo `payment_mercado_pago` de Odoo, y en Odoo no hay tokens de Mercado Pago.
+- **Se prende con una casilla** en Ajustes → ClubPay → «Cobrar con Mercado Pago a través de ClubPay». Al prenderla se comprueba que ClubPay tenga Mercado Pago conectado y el interruptor de cobros en el POS. El QR de mostrador además pide la dirección del local.
+- **Caja:** forma de pago «Mercado Pago (ClubPay)», con un QR de mostrador por el importe de la línea. Sirve sola, sin descuento, o después del cupón: la ventana del cupón tiene «Cobrar el resto con Mercado Pago». El efectivo sigue disponible.
+- **Ventas:** proveedor de pago «Mercado Pago (ClubPay)» en el portal, con el link de pago de ClubPay (canal `tienda`, vive 30 min). Al volver, el pedido se confirma y el pago entra al diario «Mercado Pago (ClubPay)».
+- **El cupón cuenta como pagado** en `sale.order.amount_paid`. Así el portal cobra solo el neto, y el pedido se confirma cuando cupón más pago cubren el total. Efecto visible: el portal muestra el cupón como «Pagado».
+- **Sin webhook:** ClubPay avisa solo a NexoPOS. Odoo pregunta: la caja cada 2 s mientras el QR está abierto, y un cron cada 2 min revisa los cobros de las últimas 48 h.
+- **Reglas de ClubPay que se respetan:** `paid` nunca vuelve atrás; `rejected` no es final (se puede probar otra tarjeta con el mismo QR); un `cancelled` o `expired` todavía puede terminar `paid`, y entonces gana el pago. Antes de ofrecer otro medio se cancela el cobro; si ClubPay contesta que ya se pagó, la venta se cierra con ese pago.
+- **El servidor vuelve a comprobar** el pago al recibir la venta de la caja: pagado, por el mismo importe y usado una sola vez.
+- **Devoluciones:** en Ventas, con «Devolver» de la transacción de Odoo (parcial o total). En la caja no: se hacen desde «Cobros con Mercado Pago» → «Devolver», solo administradores.
+- **Pagos sin venta** (se pagó pero la caja nunca cerró la venta): a los 30 min se crea una actividad para un administrador. **No se devuelven solos.** NexoPOS sí los devuelve solo; PENDIENTE DE VALIDAR con German cuál conviene.
+- **Simulador:** con el simulador de ClubPay prendido, el QR y el link no son de Mercado Pago; el pago se acredita a los 8 s (caja) o con una página de prueba (portal).

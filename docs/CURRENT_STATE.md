@@ -1,19 +1,20 @@
 # Estado actual — Nexo-odoo (rama 20.0)
 
-Actualizado al 23/11/2026 (noche). Se lee al empezar cada tarea y se actualiza al terminarla.
+Actualizado al 24/11/2026. Se lee al empezar cada tarea y se actualiza al terminarla.
 
 ## Resumen
 | Tema | Estado |
 |---|---|
 | `nexo_core`: cliente HTTP, errores, sesión (token), registro y diagnóstico | PARCIAL: instalado y con tests pasando en una base de prueba; sin API real |
 | `nexo_b2b`: Ajustes, login, catálogo (OWL), «Agregar», mapeos | PARCIAL: instalado y con tests pasando en una base de prueba; pantallas vistas en el navegador; sin API real |
-| Tests con respuestas simuladas | IMPLEMENTADO: `nexo_core`, `nexo_b2b`, `nexo_pos`, `nexo_tienda` y `nexo_clubpay`, **0 fallas** (23/11/2026 noche, base `nexo_test_ci`, en dos corridas: 33 y 49 casos según el contador de Odoo) |
+| Tests con respuestas simuladas | IMPLEMENTADO: `nexo_core`, `nexo_b2b`, `nexo_pos`, `nexo_tienda` y `nexo_clubpay`, **0 fallas** (24/11/2026, base `nexo_test_ci`: 71 casos en una corrida de `nexo_core`, `nexo_pos`, `nexo_tienda` y `nexo_clubpay`) |
 | Login y búsqueda contra la API real de NexoB2B (`https://nexob2b.app`) | IMPLEMENTADO: probado por German con Jure Hnos SRL (dueño), 3879 productos |
 | «Agregar» contra la API real | IMPLEMENTADO: probado por German el 23/11/2026 con «Accesorios Lona Pelopincho 1130» (Rivera Hogar) |
 | Compras vía NexoB2B (pedido de compra → orden, estado y avisos) | PARCIAL: envío real y confirmación probados (ORD-00055); faltan armado, transporte, entrega y recepción |
 | `nexo_pos`: precios y stock de Odoo en NexoPOS (base de NexoTienda) | PARCIAL: 14 tests; lectura e importación probadas con Jure; escritura sin probar |
 | Pedidos de NexoTienda en la caja de Odoo (`nexo_tienda`) | PARCIAL: tests con NexoPOS simulado; **lectura y pasos aceptar/listo/entregado probados contra NexoPOS real** (P-0962559F de Jure, los pasos los hizo German); **el pedido entra solo a la caja abierta** (P-3C1D1EBC); cobrarlo en la caja sin probar |
-| Descuento de ClubPay en la caja y en Ventas (`nexo_clubpay`) | PARCIAL: 19 tests; probado en navegador **con el simulador** (caja, portal, ventana del pedido) y la factura con cupón por shell; **sin clave real de ClubPay** |
+| Descuento de ClubPay en la caja y en Ventas (`nexo_clubpay`) | PARCIAL: probado con el simulador y **con la clave real de Jure, cargada por German, que confirmó el circuito** (24/11/2026) |
+| Mercado Pago a través de ClubPay (`nexo_clubpay`, DEC-024) | PARCIAL: caja y portal probados en navegador **solo con el simulador**; **sin un cobro real de Mercado Pago** |
 | Acceso al Odoo 20 de Linware | IMPLEMENTADO (SSH con llave, lectura sin `sudo`) |
 | Base de prueba en Odoo 20 | PENDIENTE DE VALIDAR (todavía no existe) |
 | Acceso a la API de NexoB2B | IMPLEMENTADO: host `https://nexob2b.app`; la clave y el usuario los carga German en Ajustes de la base de prueba |
@@ -154,13 +155,63 @@ Mismo contrato que NexoPOS (`clubapp/docs/nexopos-cobro-qr.md`). Decisiones en D
 - **Factura:** por shell y sin guardar, FA-B 00001-00000001 por $14.876,03 quedó con saldo $11.900,82 y el pago del diario «Cupones ClubPay».
 - **PDF del QR:** generado por shell.
 
-**Estado de la base de prueba:** el simulador quedó **prendido** en la compañía, y «Cupón ClubPay» está sumado a las dos cajas de Jure Hnos SRL.
+**Estado de la base de prueba (24/11/2026):** clave real de ClubPay cargada por German, simulador **apagado**, «Cupón ClubPay» sumado a las dos cajas de Jure Hnos SRL.
+
+**Clave real:** al guardarla daba «ClubPay tardó demasiado en responder». La causa era que Odoo y ClubPay están en la misma LAN y el servidor no llega a la IP pública de ClubPay (NAT de horquilla). German cargó `api.clubpay.com.ar` en el DNS del router con la IP interna, y desde ahí funciona. Lo mismo puede pasarles a otros servidores de esa red.
 
 **Sin probar:**
-- **Contra ClubPay real**, con una clave `pos_…`.
 - «Imprimir QR» en una ticketera de la caja.
 - **Anulación:** ClubPay no tiene cómo anular un descuento aplicado. La caja no deja usar ClubPay en devoluciones.
 - **Cómo se concilia el diario «Cupones ClubPay»** con lo que ClubPay le paga al comercio. PENDIENTE DE VALIDAR con German.
+
+## Mercado Pago a través de ClubPay (`nexo_clubpay`, 24/11/2026)
+Contrato `/pos/payments` de ClubPay (ver API_CONTRACTS). Decisiones en DEC-024. Odoo no tiene credenciales de Mercado Pago: usa el Mercado Pago que el comercio conectó en ClubPay.
+
+**Configuración:** Ajustes → ClubPay → «Cobrar con Mercado Pago a través de ClubPay». Después de guardar, «Crear y sumar a las cajas» crea:
+- el diario «Mercado Pago (ClubPay)» (CPMP);
+- la forma de pago de la caja «Mercado Pago (ClubPay)» (terminal `clubpay_mp`), sumada a las cajas;
+- el proveedor de pago «Mercado Pago (ClubPay)» del portal, publicado y con ese diario.
+
+**IMPLEMENTADO:**
+- **Caja:**
+  - Con la forma de pago «Mercado Pago (ClubPay)» sale un QR de mostrador por el importe de la línea. Sirve sin descuento.
+  - Con el cupón aplicado, «Cobrar el resto con Mercado Pago» sigue directo al QR por el resto.
+  - Se pregunta cada 2 s. Al pagarse, la línea queda hecha y la venta se valida sola si está cubierta.
+  - Un rechazo no cierra la ventana: se puede probar otra tarjeta con el mismo QR.
+  - Cancelar o «Cobrar con otro medio» cancela el cobro en ClubPay. Si ClubPay contesta que ya se pagó, la venta se cierra con ese pago.
+  - Las otras opciones son «Imprimir QR» (ticket «Pagá con Mercado Pago») y «Generar otro».
+  - El servidor vuelve a comprobar el pago al recibir la venta: pagado, por el mismo importe y usado una sola vez.
+- **Ventas (portal):**
+  - El cliente aplica el cupón y paga el resto con «Mercado Pago (ClubPay)». Va al link de pago de ClubPay y vuelve a Odoo.
+  - El pedido se confirma y el pago entra al diario «Mercado Pago (ClubPay)».
+  - También sirve sin cupón.
+- **Devoluciones:**
+  - En Ventas, desde la transacción, con el flujo estándar de Odoo.
+  - En la caja, desde «Cobros con Mercado Pago» → «Devolver» (solo administradores).
+- **Lista «Cobros con Mercado Pago»** en Ventas y en Punto de Venta.
+- **Cron cada 2 min:** actualiza los cobros abiertos de las últimas 48 h. A un pago sin venta después de 30 min le crea una actividad a un administrador.
+
+**Probado en `nexo_test_ci` con el simulador (24/11/2026):**
+- **Caja:** total $4.134,23. El cupón aplicó $826,85 y el QR de Mercado Pago cobró $3.307,38. La venta «Jure Hnos SRL - 000001» se validó sola, con las dos líneas vinculadas a sus cobros.
+- **Portal:** S00263, por $41.322,30.
+  - Descuento de $8.000; Mercado Pago cobró $33.322,30.
+  - El pedido quedó confirmado, con `amount_paid` 41.322,30 y el pago PCPMP/2026/00002.
+  - La factura (por shell, sin guardar) quedó con saldo 0: $33.322,30 de Mercado Pago y $8.000 de cupones.
+- **Tests:** 12 casos de Mercado Pago dentro de los 71. Cubren QR y pago, rechazo y después pago, cancelación con el pago ya hecho, devolución, pago sin venta, caja y portal.
+
+**Datos que quedaron en la base de prueba:**
+- S00263 confirmado y pagado con el simulador.
+- La venta de caja 000001.
+- Una sesión de caja abierta en la caja 1.
+
+**Sin probar / riesgos:**
+- **Un cobro real de Mercado Pago.** Crea un cobro real en el Mercado Pago de Jure, así que lo decide y lo hace German.
+- **Una sola caja de Mercado Pago por comercio** en ClubPay, compartida con NexoPOS. No está confirmado qué pasa con dos QR de mostrador abiertos a la vez. PENDIENTE DE VALIDAR con ClubPay.
+- **Qué apps leen el QR:** el ticket dice «Mercado Pago o tu billetera». Que la app de ClubPay lo lea no está verificado.
+- **`web.base.url`:** la vuelta del portal usa la URL base de Odoo. En producción tiene que ser la pública. En `nexo_test_ci` es `localhost:8098`.
+- **Pagos sin venta:** Odoo no los devuelve solo, NexoPOS sí. PENDIENTE DE VALIDAR con German.
+- **El portal muestra el cupón como «Pagado»**, porque usa la etiqueta estándar de `amount_paid`.
+- **La conciliación de los diarios «Mercado Pago (ClubPay)» y «Cupones ClubPay»** con lo que ClubPay o Mercado Pago le pagan al comercio. PENDIENTE DE VALIDAR con German.
 
 ## Compras vía NexoB2B (23/11/2026)
 **IMPLEMENTADO en código, con tests:**

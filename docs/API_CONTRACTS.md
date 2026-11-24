@@ -131,3 +131,15 @@ Fuente: `clubapp/docs/nexopos-cobro-qr.md` del repo de ClubPay, el mismo contrat
 - `POST /pos/charges/:id/cancel` → `cancelled`, o 409 si ya estaba resuelto (Odoo vuelve a leerlo).
 - La clave se prueba con `GET /pos/charges/chg_prueba_de_odoo`: un 404 es clave válida.
 - No hay anulación de un descuento aplicado.
+
+## ClubPay — cobros con Mercado Pago (`/pos/payments`)
+Fuente: `clubapp/docs/respuesta-pedido-cobros-mercadopago.md` y `backend/src/routes/pos.ts` del repo de ClubPay. Misma base y misma clave que los cupones. Importes en centavos. Decisiones en DEC-024. **IMPLEMENTADO, probado solo con simulador.**
+- `GET /pos/payments/status` → `{mercadopago, enabled_for_pos, mostrador_listo}`. Se consulta al prender la casilla y antes de cada cobro.
+- `POST /pos/payments {amount_cents, external_reference, channel, description?, return_url?}` → el cobro. `channel` es `mostrador` (trae `qr_data` EMVCo, vence a los 5 min) o `tienda` (trae `checkout_url`, vence a los 30 min). Odoo manda `external_reference` = `odoo-<base>-<pos|tx>-<id>`.
+- `GET /pos/payments/:id` → `payment_id, status, amount_cents, fee_cents, refunded_cents, paid_at, mp_payment_id, qr_data, checkout_url, expires_at, error`. `status`: `pending`, `paid`, `rejected`, `expired`, `cancelled` o `refunded`.
+- `POST /pos/payments/:id/cancel` → el cobro cancelado, o 409 con los datos del cobro si ya se pagó (Odoo toma ese pago).
+- `POST /pos/payments/:id/refunds {amount_cents?, external_reference}` → el cobro con `refunded_cents` actualizado.
+- Los errores 502 traen el texto en `message` o `error`.
+- **Sin webhook para Odoo:** ClubPay avisa solo a NexoPOS. Odoo consulta con `GET`.
+- **PENDIENTE DE VALIDAR con ClubPay:** hay una sola caja de Mercado Pago por comercio (compartida con NexoPOS). No está confirmado qué pasa con dos QR de mostrador abiertos a la vez.
+

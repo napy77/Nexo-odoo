@@ -31,12 +31,20 @@ nexo_tienda (depende de nexo_pos, sale_stock, pos_sale_stock)
   pos.order / stock.picking  cobrado o entregado en Odoo → «entregado» en NexoPOS
   cron               cada minuto: avisar entregas y traer pedidos
 
-nexo_clubpay (depende de nexo_core, point_of_sale, sale) — DEC-023
+nexo_clubpay (depende de nexo_core, point_of_sale, sale; payment llega por sale) — DEC-023 y DEC-024
   nexo.clubpay.charge  un cobro de ClubPay (QR), con socio, descuento y a qué venta quedó
   pos.payment.method   terminal «clubpay»; pos.payment comprueba el cupón al recibir la venta
   static/src/pos       PaymentClubPay + ventana del QR (como NexoPOS) + ticket del QR
   sale.order / portal  botón «Descuento ClubPay» y QR a demanda en el portal
   account.move._post   el cupón entra como pago parcial (diario «Cupones ClubPay»)
+  — Mercado Pago a través de ClubPay (DEC-024) —
+  nexo.clubpay.payment un cobro de Mercado Pago (QR de mostrador o link), con a qué venta quedó
+  payment.provider     código «clubpay»: «Mercado Pago (ClubPay)» en el portal
+  payment.transaction  link de ClubPay, estados y devoluciones con el flujo estándar de Odoo
+  controllers/payment  vuelta de Mercado Pago (/payment/clubpay/return) y página del simulador
+  pos.payment.method   terminal «clubpay_mp»; pos.payment comprueba el pago al recibir la venta
+  static/src/pos       PaymentClubPayMp + ventana del QR; «Cobrar el resto con Mercado Pago»
+  cron                 cada 2 min: estado de los cobros y aviso de pagos sin venta
 ```
 
 ## Flujo
