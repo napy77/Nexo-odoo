@@ -6,13 +6,12 @@ ruta que le pedimos a ClubPay: todavía no existe y el fake la contesta con 404
 salvo que el test cargue pagos.
 """
 import copy
-from unittest.mock import patch
 
 from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import tagged
 
-from odoo.addons.nexo_core.lib.client import NexoClient, NexoError
+from odoo.addons.nexo_core.lib.client import NexoError
 
 from .test_nexo_clubpay import KEY, ClubPayCase, FakeClubPay
 
@@ -60,13 +59,10 @@ class FakeLibreta(FakeClubPay):
 
 @tagged('post_install', '-at_install')
 class TestLibreta(ClubPayCase):
+    fake_class = FakeLibreta
 
     def setUp(self):
         super().setUp()
-        self.fake = FakeLibreta()
-        patcher = patch.object(NexoClient, 'request', autospec=True, side_effect=self.fake)
-        patcher.start()
-        self.addCleanup(patcher.stop)
         self.Charge.set_key(KEY)
         self.Line = self.env['nexo.clubpay.libreta.line']
         self.env['res.config.settings'].create({'nexo_clubpay_libreta': True}).execute()
@@ -75,8 +71,8 @@ class TestLibreta(ClubPayCase):
             # Con la localización argentina la factura pide la condición frente
             # al IVA: consumidor final, como en la caja.
             self.partner.l10n_ar_afip_responsibility_type_id = self.env.ref('l10n_ar.res_CF')
-            self.partner.l10n_latam_identification_type_id = self.env.ref('l10n_ar.it_dni')
-            self.partner.vat = '26098535'
+            # En Odoo 20 el DNI va en los identificadores adicionales.
+            self.partner.additional_identifiers = {'AR_DNI': '26098535'}
         self.iva = self.env['account.tax'].search([('type_tax_use', '=', 'sale'), ('amount', '=', 21),
                                                    ('company_id', '=', self.env.company.id)], limit=1)
         self.ext = f"ODOO-{self.partner.id}"
@@ -167,6 +163,11 @@ class TestLibreta(ClubPayCase):
         self.assertEqual(sent['kind'], 'devolucion')
         self.assertLess(sent['amount_cents'], 0, "Baja la deuda: va con signo negativo")
 
+        # El saldo inicial no tiene apunte propio y no por eso está borrado.
+        self.Line._cron_libreta()
+        self.Line._cron_libreta()
+        self.assertFalse([m for m in self.fake.movements if m.endswith('-anulado')])
+
     def test_network_failure_retries(self):
         self._link()
         invoice = self._invoice(500.0)
@@ -191,7 +192,8 @@ class TestLibreta(ClubPayCase):
         reversal = self.fake.movements[f"{line.movement_id}-anulado"]
         self.assertEqual(reversal['amount_cents'], -round(invoice.amount_total * 100))
         self.Line._cron_libreta()
-        self.assertEqual(len([m for m in self.fake.movements if m.endswith('-anulado')]), 1)
+        self.assertEqual(len([m for m in self.fake.movements if m.endswith('-anulado')]), 1,
+                         "Ni la anulación ni el saldo inicial se anulan solos")
 
     def test_payment_from_app(self):
         self._link()
@@ -216,14 +218,14 @@ class TestLibreta(ClubPayCase):
         self.assertEqual(len(self.fake.movements), sent_before, "El pago vino de ClubPay: no se le devuelve")
         # Repetido: no registra dos veces.
         self.Line._cron_libreta()
-        self.env['nexo.clubpay.libreta.payment']._register(self.fake.app_payments[0], self.env.company)
+        self.env['nexo.clubpay.libreta.payment']._record_app_payment(self.fake.app_payments[0], self.env.company)
         self.assertEqual(self.env['nexo.clubpay.libreta.payment'].search_count([('name', '=', 'pay_12')]), 1)
         self.assertEqual(old.amount_residual, old.amount_total - 1000.0)
 
     def test_overpayment_stays_in_favour(self):
         self._link()
         invoice = self._invoice(100.0)
-        pay = self.env['nexo.clubpay.libreta.payment']._register(
+        pay = self.env['nexo.clubpay.libreta.payment']._record_app_payment(
             {'clubpay_payment_id': 'pay_13', 'external_id': self.ext,
              'amount_cents': round((invoice.amount_total + 50) * 100), 'paid_at': '2099-01-01T00:00:00Z'},
             self.env.company)

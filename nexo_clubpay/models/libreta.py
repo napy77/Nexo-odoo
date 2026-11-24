@@ -196,7 +196,7 @@ class ResPartner(models.Model):
             raise UserError(_("Primero la persona tiene que aceptar la invitación."))
         debt = self.env['nexo.clubpay.libreta.line']._balance(partner, company)
         amount = debt if debt > 0 else 10000.0
-        pay = self.env['nexo.clubpay.libreta.payment']._register({
+        pay = self.env['nexo.clubpay.libreta.payment']._record_app_payment({
             'clubpay_payment_id': f"pay_sim_{fields.Datetime.now().strftime('%Y%m%d%H%M%S')}_{partner.id}",
             'external_id': _external_id(partner), 'amount_cents': centavos(amount),
             'paid_at': _iso(fields.Datetime.now()),
@@ -428,10 +428,13 @@ class NexoClubpayLibretaLine(models.Model):
         """Una factura que se pasó a borrador o se borró después de avisarla:
         se avisa la anulación. El id deriva del original, así que repetirla no
         duplica nada."""
+        # Solo los que nacieron de un apunte (`-aml-`): el saldo inicial y las
+        # anulaciones no tienen apunte propio, y no por eso están borrados.
         gone = self.sudo().search([('company_id', '=', company.id), ('state', '=', 'sent'), ('reversed', '=', False),
-                                   ('move_line_id', '=', False)])
+                                   ('move_line_id', '=', False), ('movement_id', 'like', '%-aml-%'),
+                                   ('movement_id', 'not like', '%-anulado')])
         gone |= self.sudo().search([('company_id', '=', company.id), ('state', '=', 'sent'), ('reversed', '=', False),
-                                    ('move_line_id.parent_state', '!=', 'posted')])
+                                    ('move_line_id', '!=', False), ('move_line_id.parent_state', '!=', 'posted')])
         for line in gone:
             self.sudo().create({
                 'partner_id': line.partner_id.id, 'company_id': company.id,
@@ -552,7 +555,7 @@ class NexoClubpayLibretaPayment(models.Model):
     _name_unique = models.Constraint('UNIQUE(company_id, name)', "Ese pago de ClubPay ya está registrado.")
 
     @api.model
-    def _register(self, data, company, simulated=False):
+    def _record_app_payment(self, data, company, simulated=False):
         existing = self.sudo().search([('company_id', '=', company.id), ('name', '=', data['clubpay_payment_id'])])
         if existing:
             return existing
@@ -635,6 +638,6 @@ class NexoClubpayLibretaPayment(models.Model):
                 continue  # son de NexoPOS: ClubPay ya se los avisa a NexoPOS
             # Si uno falla, el error sube y `desde` no avanza: la próxima corrida
             # lo vuelve a traer. Un pago no se saltea en silencio.
-            self._register(item, company)
+            self._record_app_payment(item, company)
         if data.get('hasta'):
             self.env['ir.config_parameter'].sudo().set_str(param, data['hasta'])

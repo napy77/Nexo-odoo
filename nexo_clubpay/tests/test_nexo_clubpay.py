@@ -110,10 +110,11 @@ class FakeClubPay:
 
 
 class ClubPayCase(TransactionCase):
+    fake_class = FakeClubPay
 
     def setUp(self):
         super().setUp()
-        self.fake = FakeClubPay()
+        self.fake = self.fake_class()
         patcher = patch.object(NexoClient, 'request', autospec=True, side_effect=self.fake)
         patcher.start()
         self.addCleanup(patcher.stop)
