@@ -161,7 +161,6 @@ Mismo contrato que NexoPOS (`clubapp/docs/nexopos-cobro-qr.md`). Decisiones en D
 - «Imprimir QR» en una ticketera de la caja.
 - **Anulación:** ClubPay no tiene cómo anular un descuento aplicado. La caja no deja usar ClubPay en devoluciones.
 - **Cómo se concilia el diario «Cupones ClubPay»** con lo que ClubPay le paga al comercio. PENDIENTE DE VALIDAR con German.
-- ClubPay no tiene ícono propio en Odoo todavía.
 
 ## Compras vía NexoB2B (23/11/2026)
 **IMPLEMENTADO en código, con tests:**
