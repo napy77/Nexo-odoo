@@ -12,7 +12,7 @@ Actualizado al 23/11/2026 (noche). Se lee al empezar cada tarea y se actualiza a
 | «Agregar» contra la API real | IMPLEMENTADO: probado por German el 23/11/2026 con «Accesorios Lona Pelopincho 1130» (Rivera Hogar) |
 | Compras vía NexoB2B (pedido de compra → orden, estado y avisos) | PARCIAL: envío real y confirmación probados (ORD-00055); faltan armado, transporte, entrega y recepción |
 | `nexo_pos`: precios y stock de Odoo en NexoPOS (base de NexoTienda) | PARCIAL: 14 tests; lectura e importación probadas con Jure; escritura sin probar |
-| Pedidos de NexoTienda en la caja de Odoo (`nexo_tienda`) | PARCIAL: tests con NexoPOS simulado; **lectura probada contra NexoPOS real** (P-0962559F de Jure); los pasos (aceptar, listo, entregado, cancelar) sin probar contra NexoPOS real |
+| Pedidos de NexoTienda en la caja de Odoo (`nexo_tienda`) | PARCIAL: tests con NexoPOS simulado; **lectura y pasos aceptar/listo/entregado probados contra NexoPOS real** (P-0962559F de Jure, los pasos los hizo German); **el pedido entra solo a la caja abierta** (P-3C1D1EBC); cobrarlo en la caja sin probar |
 | Acceso al Odoo 20 de Linware | IMPLEMENTADO (SSH con llave, lectura sin `sudo`) |
 | Base de prueba en Odoo 20 | PENDIENTE DE VALIDAR (todavía no existe) |
 | Acceso a la API de NexoB2B | IMPLEMENTADO: host `https://nexob2b.app`; la clave y el usuario los carga German en Ajustes de la base de prueba |
@@ -45,6 +45,21 @@ Actualizado al 23/11/2026 (noche). Se lee al empezar cada tarea y se actualiza a
 - La descarga del diagnóstico desde la interfaz.
 
 ## NexoPOS: precios y stock (`nexo_pos`, 23/11/2026)
+**Pasos reales hechos por German** (23/11/2026, 22:43–22:44): aceptar, listo y entregado de P-0962559F desde Odoo. NexoPOS contestó 200 a los tres (registro `nexo.log`) y el pedido quedó entregado.
+
+**El pedido entra solo a la caja** (pedido de German del 23/11: «si el usuario está parado vendiendo, no se entera»):
+- Cada minuto, el cron pone cada pedido en curso, con su pedido de venta, como **una orden en borrador de la caja abierta**. Se llama como el pedido (P-…), trae cliente, líneas con el precio de NexoPOS, y en la nota: teléfono, retiro o reparto con franja y dirección, forma de pago, «listo para» y la revisión. La caja abierta se entera al instante (aviso de sincronización de Odoo).
+- **Qué caja:** la elegida en Ajustes («Caja que recibe los pedidos»). Si no se eligió, la única caja de la compañía; si hay varias, la única con sesión abierta. Si la caja está cerrada, el pedido entra cuando se abre.
+- **No entran** los pagados con Mercado Pago o a la libreta (no se cobran en la caja), ni los que no tienen pedido de venta.
+- **Cancelado en NexoPOS:** la orden en borrador se cancela y desaparece de la caja.
+- **El cajero la borra:** no se vuelve a poner en esa sesión; en la próxima sesión sí, si sigue en curso.
+- **Cerrar la caja** con pedidos de tienda en borrador: se sacan de la sesión (Odoo no deja cerrar con borradores) y entran a la próxima.
+- **Cobrarla en la caja** la marca entregada y el cron avisa a NexoPOS, paso por paso.
+- **Probado en la base de prueba** (23/11/2026, cron prendido): P-3C1D1EBC (Pizza Muzzarella Lista, $9.000) entró sola a la sesión abierta Jure Hnos SRL/00002 como orden en borrador «P-3C1D1EBC» por $9.000. No se vio todavía en la pantalla de la caja; cobrarla está sin probar contra datos reales.
+- Tests: 8 casos nuevos (`TestNexoTiendaPos`); la corrida completa de `nexo_tienda`, 0 fallas de 21 (1 salteado: necesita que no haya otra caja abierta en la base).
+
+**Por qué hubo que tocar «Traer pedidos» con P-3C1D1EBC:** el Odoo de prueba corría sin cron. Además, el servicio `odoo.service` de producción del servidor también corre los crons de la base `nexo_test_ci`, pero sin `/opt/nexo-odoo` en sus módulos, así que los crons de Nexo fallan ahí (63 fallas desde el 23/11 22:29) y chocan con las actualizaciones (`-u`). En un Odoo bien configurado el cron trae los pedidos solo. **PENDIENTE DE VALIDAR con German:** excluir `nexo_test_ci` de los crons del servicio de producción (no se tocó su configuración).
+
 **IMPLEMENTADO, con tests contra NexoPOS simulado** (`nexo_pos/tests/test_nexo_pos.py`, 12 tests):
 - **Clave:** Ajustes → NexoPOS. Se prueba contra `GET /productos` antes de guardarla y queda solo en `nexo.token`. No va al registro.
 - **«Mandar precios y stock a NexoPOS»:** viene **apagado**. Apagado, Odoo solo lee y compara (DEC-018).
@@ -103,7 +118,7 @@ NexoPOS hizo lo pedido (commit `cd15a2c`, respuesta en `nexo-pos/docs/RESPUESTA-
 **Visto en el navegador** (base de prueba, con dos pedidos de demo, P-DEMO0001 y P-DEMO0002, creados con `_upsert` sin llamar a NexoPOS): la lista, la ficha con la revisión y el producto sin vincular, la ventana «Aceptar» (cerrada sin aceptar), el aviso en el pedido de venta S00012 (total $500 igual a NexoPOS) y el interruptor en Ajustes.
 
 **Sin probar:**
-- Los pasos contra NexoPOS real (aceptar, listo, entregado, cancelar): escriben en Jure, así que los hace German (DEC-017). Plan en `docs/PARA-NEXOPOS_de-NEXO-ODOO_pedidos-de-tienda-para-erp.md`.
+- Cancelar contra NexoPOS real: escribe en Jure, así que lo hace German (DEC-017).
 - **Cobrar en el Punto de Venta** («Cobrar un pedido»): no hay test. Lo que no se manda a NexoPOS en la entrega de la caja se calcula con las líneas que vienen de un pedido de tienda. Con «mover el stock al cerrar la sesión», toma los pedidos de la sesión. PENDIENTE DE VALIDAR.
 - **Cómo entra a la contabilidad un pago de Mercado Pago o a la libreta.** PENDIENTE DE VALIDAR con German.
 

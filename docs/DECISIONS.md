@@ -116,3 +116,10 @@ Origen: brief de nexo-ecosystem (30/10/2026) y respuesta con las decisiones de G
 - **Entregado en NexoPOS → la entrega de Odoo se valida sola.**
 - Viene **apagado** por compañía: prenderlo es decidir que la caja es Odoo (DEC-016).
 - **PENDIENTE DE VALIDAR con German:** un pedido pagado con Mercado Pago o a la libreta no se cobra en la caja (Odoo lo avisa), pero tampoco se registra ese pago en Odoo. Falta decidir cómo entra a la contabilidad.
+
+## DEC-022 — El pedido de tienda entra solo a la caja como orden en borrador
+- Pedido de German (23/11/2026): el cajero que está vendiendo no mira la lista de pedidos, así que el pedido tiene que aparecer en la caja.
+- Cada pedido en curso con pedido de venta se pone como **orden en borrador** (`pos.order`, nombre = código del pedido) en la caja elegida en Ajustes; si no hay una elegida, la única de la compañía o la única abierta. Se avisa a la caja con la sincronización de Odoo, que carga los borradores al momento.
+- No entran los pagados online o a la libreta: no se cobran en la caja.
+- Cancelado en NexoPOS → se cancela el borrador. Borrado por el cajero → no se repone en esa sesión. Cierre de caja → los borradores de tienda salen de la sesión y entran a la próxima.
+- Solo cuenta como cobrado en la caja una orden pagada (`paid`, `done`, `invoiced`), nunca el borrador.
