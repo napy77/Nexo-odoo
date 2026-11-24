@@ -47,6 +47,20 @@ class TestNexoClient(BaseCase):
         self.assertNotIn('tok', repr(entry))
         self.assertNotIn('pk_test', repr(entry))
 
+    def test_key_in_custom_header(self):
+        client = NexoClient('https://api.clubpay.com.ar', token='pos_x', auth_header='X-API-Key', service='ClubPay')
+        with patch.object(NexoClient, '_send', return_value=fake_response(200, {})) as send:
+            client.request('GET', '/pos/charges/chg_1')
+        headers = send.call_args.kwargs['headers']
+        self.assertEqual(headers['X-API-Key'], 'pos_x')
+        self.assertNotIn('Authorization', headers)
+
+    def test_message_field_is_kept(self):
+        with patch.object(NexoClient, '_send', return_value=fake_response(409, {'message': 'El cobro ya está resuelto'})):
+            with self.assertRaises(NexoError) as err:
+                self._client().request('GET', '/x')
+        self.assertIn('El cobro ya está resuelto', err.exception.user_message())
+
     def test_no_auth_header_when_not_needed(self):
         with patch.object(NexoClient, '_send', return_value=fake_response(200, {})) as send:
             self._client().request('POST', '/store/comercios/auth', json_body={'email': 'a', 'password': 'b'}, auth=False)

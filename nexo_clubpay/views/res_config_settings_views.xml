@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_nexo_clubpay" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.nexo_clubpay</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="92"/>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="ClubPay" string="ClubPay" name="nexo_clubpay" groups="base.group_system">
+                    <block title="Descuentos de socios" name="nexo_clubpay_connection">
+                        <setting id="nexo_clubpay_key" string="Clave de ClubPay del comercio"
+                                 help="La misma clave «pos_…» que usa NexoPOS (NexoPOS → Configuración → ClubPay). Odoo la prueba antes de guardarla y no la vuelve a mostrar.">
+                            <field name="nexo_clubpay_status" readonly="1"/>
+                            <div class="content-group mt8">
+                                <div class="row">
+                                    <label for="nexo_clubpay_key" class="col-lg-4 o_light_label"/>
+                                    <field name="nexo_clubpay_key" password="True" placeholder="pos_…"/>
+                                </div>
+                                <div class="row">
+                                    <label for="nexo_clubpay_url" class="col-lg-4 o_light_label"/>
+                                    <field name="nexo_clubpay_url"/>
+                                </div>
+                            </div>
+                            <div class="mt8">
+                                <button name="action_nexo_clubpay_set_key" type="object" string="Cargar clave" class="btn-primary"/>
+                                <button name="action_nexo_clubpay_remove_key" type="object" string="Quitar clave" class="btn-link ms-2"
+                                        confirm="La caja y Ventas dejan de ofrecer el descuento de ClubPay. ¿Seguimos?"/>
+                            </div>
+                        </setting>
+                        <setting id="nexo_clubpay_setup" string="Forma de pago «Cupón ClubPay»"
+                                 help="El descuento no achica la venta: entra como forma de pago, igual que en NexoPOS. Crea el diario «Cupones ClubPay» y la forma de pago, y la suma a las cajas cerradas.">
+                            <field name="nexo_clubpay_journal_id" readonly="1"/>
+                            <div class="mt8">
+                                <button name="action_nexo_clubpay_setup" type="object" string="Crear y sumar a las cajas" class="btn-secondary"/>
+                                <button name="action_nexo_clubpay_charges" type="object" string="Ver descuentos" class="btn-link ms-2" icon="east"/>
+                            </div>
+                        </setting>
+                        <setting id="nexo_clubpay_simulator" string="Simulador (solo para probar)"
+                                 help="No habla con ClubPay: el QR no sirve con la app y el descuento (20 % con tope de $8.000) se aplica solo a los 6 segundos. La caja y el portal lo avisan. No lo prendas en un comercio real.">
+                            <field name="nexo_clubpay_simulator"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>

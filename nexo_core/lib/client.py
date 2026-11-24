@@ -104,9 +104,12 @@ class NexoClient:
     """
 
     def __init__(self, base_url, publishable_key=None, token=None, connector='odoo',
-                 timeout=DEFAULT_TIMEOUT, on_call=None, service='NexoB2B'):
+                 timeout=DEFAULT_TIMEOUT, on_call=None, service='NexoB2B', auth_header=None):
         # Nombre del servicio para los mensajes al usuario.
         self.service = service
+        # Cabecera donde va la clave cuando no es `Authorization: Bearer`
+        # (ClubPay la pide en `X-API-Key`).
+        self.auth_header = auth_header
         try:
             self.base_url = normalize_base_url(base_url)
         except NexoError as e:
@@ -127,7 +130,10 @@ class NexoClient:
         if self.publishable_key:
             headers['x-publishable-api-key'] = self.publishable_key
         if auth and self.token:
-            headers['Authorization'] = f'Bearer {self.token}'
+            if self.auth_header:
+                headers[self.auth_header] = self.token
+            else:
+                headers['Authorization'] = f'Bearer {self.token}'
         return headers
 
     def _send(self, method, url, **kwargs):
@@ -176,7 +182,10 @@ class NexoClient:
             data = response.json()
         except ValueError:
             data = None
-        detail = data.get('error') if isinstance(data, dict) and isinstance(data.get('error'), str) else None
+        detail = None
+        if isinstance(data, dict):
+            # NexoB2B y NexoPOS mandan `error`; ClubPay a veces `message`.
+            detail = next((data[k] for k in ('error', 'message') if isinstance(data.get(k), str)), None)
         if 200 <= status < 300:
             if data is None:
                 raise NexoError('invalid_response', service=service, status=status, request_id=request_id)

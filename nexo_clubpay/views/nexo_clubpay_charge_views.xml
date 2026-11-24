@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="nexo_clubpay_charge_list" model="ir.ui.view">
+        <field name="name">nexo.clubpay.charge.list</field>
+        <field name="model">nexo.clubpay.charge</field>
+        <field name="arch" type="xml">
+            <list create="false" delete="false" decoration-success="state == 'applied'" decoration-muted="state in ('expired', 'cancelled')">
+                <field name="create_date" string="Fecha"/>
+                <field name="origin"/>
+                <field name="sale_order_id" optional="show"/>
+                <field name="name" optional="hide"/>
+                <field name="state"/>
+                <field name="member_name"/>
+                <field name="member_number" optional="show"/>
+                <field name="club_name" optional="hide"/>
+                <field name="ticket_total" sum="Total"/>
+                <field name="discount" sum="Descuentos"/>
+                <field name="transaction_id" optional="hide"/>
+                <field name="simulated" optional="hide"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="nexo_clubpay_charge_form" model="ir.ui.view">
+        <field name="name">nexo.clubpay.charge.form</field>
+        <field name="model">nexo.clubpay.charge</field>
+        <field name="arch" type="xml">
+            <form create="false" delete="false" edit="false">
+                <header>
+                    <field name="state" widget="statusbar" statusbar_visible="pending,applied"/>
+                </header>
+                <sheet>
+                    <div class="alert alert-warning" invisible="not simulated">Cobro del simulador: no pasó por ClubPay.</div>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="origin"/>
+                            <field name="sale_order_id" invisible="not sale_order_id"/>
+                            <field name="pos_payment_id" invisible="not pos_payment_id"/>
+                            <field name="invoice_payment_id" invisible="not invoice_payment_id"/>
+                            <field name="expires_at"/>
+                        </group>
+                        <group>
+                            <field name="ticket_total"/>
+                            <field name="discount"/>
+                            <field name="neto"/>
+                            <field name="recorte_texto" invisible="not recorte_texto"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="member_name"/>
+                            <field name="member_number"/>
+                            <field name="club_name"/>
+                            <field name="offer_description"/>
+                        </group>
+                        <group>
+                            <field name="transaction_id"/>
+                            <field name="external_reference"/>
+                            <field name="error" invisible="not error"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="nexo_clubpay_charge_search" model="ir.ui.view">
+        <field name="name">nexo.clubpay.charge.search</field>
+        <field name="model">nexo.clubpay.charge</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="member_name"/>
+                <field name="member_number"/>
+                <field name="sale_order_id"/>
+                <filter name="applied" string="Aplicados" domain="[('state', '=', 'applied')]"/>
+                <separator/>
+                <filter name="pos" string="Punto de Venta" domain="[('origin', '=', 'pos')]"/>
+                <filter name="sale" string="Ventas" domain="[('origin', '=', 'sale')]"/>
+                <group>
+                    <filter name="group_state" string="Estado" context="{'group_by': 'state'}"/>
+                    <filter name="group_club" string="Club" context="{'group_by': 'club_name'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="nexo_clubpay_charge_action" model="ir.actions.act_window">
+        <field name="name">Descuentos ClubPay</field>
+        <field name="res_model">nexo.clubpay.charge</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_applied': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_empty_folder">Todavía no hay cobros con ClubPay</p>
+            <p>Se generan desde la caja, eligiendo «Cupón ClubPay», o desde un pedido de venta.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_nexo_clubpay_charges_sale" name="Descuentos ClubPay" parent="sale.sale_order_menu"
+              action="nexo_clubpay_charge_action" sequence="60"/>
+    <menuitem id="menu_nexo_clubpay_charges_pos" name="Descuentos ClubPay" parent="point_of_sale.menu_point_of_sale"
+              action="nexo_clubpay_charge_action" sequence="60"/>
+</odoo>

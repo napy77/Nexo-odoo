@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="nexo_clubpay_sale_qr_form" model="ir.ui.view">
+        <field name="name">nexo.clubpay.sale.qr.form</field>
+        <field name="model">nexo.clubpay.sale.qr</field>
+        <field name="arch" type="xml">
+            <form string="Descuento ClubPay">
+                <field name="currency_id" invisible="1"/>
+                <div class="alert alert-warning text-center fw-bold" invisible="not simulated">
+                    SIMULADOR: no habla con ClubPay. El descuento se aplica solo a los pocos segundos.
+                </div>
+                <div invisible="state != 'pending'" class="text-center">
+                    <h3>Que el cliente escanee este código con ClubPay</h3>
+                    <field name="qr_image" widget="image" options="{'size': [280, 280]}" readonly="1"/>
+                    <div class="fs-4 fw-bold mt-2">Total <field name="ticket_total" class="d-inline"/></div>
+                    <div class="text-muted">Vence a las <field name="expires_label" class="d-inline"/>. Si no lo escanea antes, generá otro.</div>
+                    <div class="text-muted small mt-2">Si lo ve en el mismo teléfono, que abra este link: <field name="qr_payload" widget="url" class="d-inline"/></div>
+                    <div class="text-danger mt-2" invisible="not error"><field name="error"/></div>
+                </div>
+                <div invisible="state != 'applied'">
+                    <div class="alert alert-success">
+                        <div class="fs-4 fw-bold">Descuento aplicado: <field name="discount" class="d-inline"/></div>
+                        <div>A pagar: <field name="neto" class="d-inline"/></div>
+                    </div>
+                    <group>
+                        <field name="member_name"/>
+                        <field name="member_number"/>
+                        <field name="club_name"/>
+                        <field name="offer_description"/>
+                        <field name="recorte_texto" invisible="not recorte_texto"/>
+                    </group>
+                    <div class="text-muted">Confirmá que el nombre y el número son de quien tenés delante. El descuento queda como cupón en la factura.</div>
+                </div>
+                <div invisible="state not in ('rejected', 'expired', 'cancelled')" class="alert alert-info">
+                    <field name="state" readonly="1" class="d-inline"/>. <field name="error" class="d-inline"/>
+                </div>
+                <footer>
+                    <button name="action_refresh" type="object" string="Ver si ya escaneó" class="btn-primary" invisible="state != 'pending'"/>
+                    <button name="action_print" type="object" string="Imprimir QR" class="btn-secondary" invisible="state != 'pending'"/>
+                    <button name="action_cancel_charge" type="object" string="Cancelar el cobro" class="btn-secondary" invisible="state != 'pending'"/>
+                    <button name="action_new" type="object" string="Generar otro QR" class="btn-primary" invisible="state not in ('rejected', 'expired', 'cancelled')"/>
+                    <button string="Cerrar" special="cancel" class="btn-link"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

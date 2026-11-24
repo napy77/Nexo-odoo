@@ -1,0 +1,6 @@
+id,name,model_id,group_id/id,operation,domain
+access_nexo_clubpay_charge_sale,nexo.clubpay.charge ventas,nexo.clubpay.charge,sales_team.group_sale_salesman,r,
+access_nexo_clubpay_charge_pos,nexo.clubpay.charge caja,nexo.clubpay.charge,point_of_sale.group_pos_user,r,
+access_nexo_clubpay_charge_account,nexo.clubpay.charge contabilidad,nexo.clubpay.charge,account.group_account_invoice,r,
+access_nexo_clubpay_charge_company,nexo.clubpay.charge multi-compañía,nexo.clubpay.charge,,crud,"[('company_id', 'in', company_ids)]"
+access_nexo_clubpay_sale_qr,nexo.clubpay.sale.qr ventas,nexo.clubpay.sale.qr,sales_team.group_sale_salesman,crud,

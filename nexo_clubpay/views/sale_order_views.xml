@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_order_form_nexo_clubpay" model="ir.ui.view">
+        <field name="name">sale.order.form.nexo_clubpay</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <field name="clubpay_available" invisible="1"/>
+                <field name="clubpay_charge_id" invisible="1"/>
+                <button name="action_clubpay_qr" type="object" string="Descuento ClubPay"
+                        invisible="not clubpay_available or clubpay_charge_id"
+                        help="Muestra el QR para que el cliente lo escanee con ClubPay. Por mail, el cliente lo genera desde el presupuesto."/>
+            </xpath>
+            <xpath expr="//sheet" position="before">
+                <field name="clubpay_total_changed" invisible="1"/>
+                <div class="alert alert-success mb-0" role="status" invisible="not clubpay_charge_id">
+                    Descuento ClubPay de <field name="clubpay_discount" class="d-inline"/>
+                    para <field name="clubpay_charge_id" readonly="1" class="d-inline" options="{'no_open': False}"/>.
+                    A pagar <field name="clubpay_neto" class="d-inline"/>: el descuento entra como cupón al facturar.
+                </div>
+                <div class="alert alert-warning mb-0" role="alert" invisible="not clubpay_total_changed">
+                    El total cambió después del descuento de ClubPay. ClubPay lo registró sobre el total anterior y
+                    todavía no se puede anular desde Odoo: coordinalo con ClubPay.
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

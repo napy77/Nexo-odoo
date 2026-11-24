@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="sale_order_portal_content_clubpay" inherit_id="sale.sale_order_portal_content" name="Descuento ClubPay">
+        <xpath expr="//div[@id='total']" position="after">
+            <t t-set="clubpay_charge" t-value="sale_order.sudo().clubpay_charge_id"/>
+            <div t-if="clubpay_charge or sale_order.clubpay_available" id="nexo_clubpay"
+                 class="o_nexo_clubpay card mb-4" t-att-data-order-id="sale_order.id"
+                 t-att-data-access-token="sale_order.access_token">
+                <div class="card-body">
+                    <t t-if="clubpay_charge">
+                        <h5 class="card-title">Descuento ClubPay aplicado</h5>
+                        <div>
+                            <span t-out="clubpay_charge.member_name"/> · socio <span t-out="clubpay_charge.member_number"/>
+                            <t t-if="clubpay_charge.club_name"> · <span t-out="clubpay_charge.club_name"/></t>
+                        </div>
+                        <div t-if="clubpay_charge.offer_description" class="text-muted" t-out="clubpay_charge.offer_description"/>
+                        <table class="table table-sm mt-2 mb-0">
+                            <tr><td>Total</td><td class="text-end"><span t-field="sale_order.amount_total"/></td></tr>
+                            <tr><td>Descuento ClubPay</td><td class="text-end">− <span t-field="clubpay_charge.discount"/></td></tr>
+                            <tr class="fw-bold"><td>A pagar</td><td class="text-end"><span t-field="sale_order.clubpay_neto"/></td></tr>
+                        </table>
+                        <div t-if="clubpay_charge.recorte_texto" class="small text-muted mt-1" t-out="clubpay_charge.recorte_texto"/>
+                    </t>
+                    <t t-else="">
+                        <h5 class="card-title">¿Sos socio de un club con ClubPay?</h5>
+                        <p class="mb-2">Tocá el botón y escaneá el código con la app de ClubPay. El descuento lo calcula ClubPay según el beneficio de tu club.</p>
+                        <button type="button" class="btn btn-primary o_nexo_clubpay_start">Usar mi descuento ClubPay</button>
+                        <div class="o_nexo_clubpay_qr d-none text-center mt-3">
+                            <div class="o_nexo_clubpay_sim alert alert-warning d-none">SIMULADOR: no habla con ClubPay.</div>
+                            <img class="o_nexo_clubpay_img" style="width: 240px; height: 240px;" alt="QR de ClubPay"/>
+                            <div class="mt-2">
+                                <a class="o_nexo_clubpay_link btn btn-outline-primary" target="_blank" rel="noopener">¿Estás en el teléfono? Abrilo en ClubPay</a>
+                            </div>
+                            <div class="o_nexo_clubpay_vence small text-muted mt-2"/>
+                            <button type="button" class="btn btn-link o_nexo_clubpay_cancel">Cancelar</button>
+                        </div>
+                        <div class="o_nexo_clubpay_msg mt-2"/>
+                    </t>
+                </div>
+            </div>
+        </xpath>
+    </template>
+</odoo>

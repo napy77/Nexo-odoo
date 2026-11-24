@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- El QR en la ticketera, para la caja donde la pantalla no da hacia el
+         cliente: se corta, se le da y lo escanea. Dice hasta qué hora sirve. -->
+    <template id="nexo_clubpay.pos_clubpay_qr_receipt">
+        <html id="pos-receipt">
+            <head>
+                <meta charset="UTF-8"></meta>
+                <t t-call="point_of_sale.pos_order_receipt_style"/>
+            </head>
+            <body>
+                <div class="pos-receipt">
+                    <div class="w-100 text-center mb-2" name="logo">
+                        <img t-if="image.get('logo')" t-att-src="image['logo']" style="max-height: 60px"/>
+                    </div>
+                    <div class="text-center text-large" t-out="extra_data['company']"/>
+                    <div class="text-center mt-2">Usá tu descuento de ClubPay</div>
+                    <div class="text-center">Escaneá este código con la app</div>
+                    <div class="text-center mt-2">
+                        <img t-att-src="image['qr']" style="width: 70%;"/>
+                    </div>
+                    <div class="text-center text-large mt-2">Total <t t-out="extra_data['total']"/></div>
+                    <div class="text-center mt-2" t-if="extra_data.get('vence')">Vence a las <t t-out="extra_data['vence']"/></div>
+                    <div class="text-center mt-2" t-if="extra_data.get('simulated')">SIMULADOR · NO SIRVE CON LA APP</div>
+                </div>
+            </body>
+        </html>
+    </template>
+</odoo>

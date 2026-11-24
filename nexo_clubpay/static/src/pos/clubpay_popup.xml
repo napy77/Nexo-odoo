@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-name="nexo_clubpay.ClubPayPopup">
+        <Dialog size="'md'" header="false" contentClass="'o_nexo_clubpay_popup rounded-4 p-2'">
+            <t t-set="info" t-value="this.props.info"/>
+            <div class="d-flex flex-column align-items-center text-center">
+                <div t-if="info.simulated" class="alert alert-warning w-100 fw-bold mb-2">
+                    SIMULADOR: no habla con ClubPay. Se aplica solo a los pocos segundos.
+                </div>
+
+                <t t-if="info.state === 'loading'">
+                    <h3 class="my-4">Pidiendo el código a ClubPay…</h3>
+                </t>
+
+                <t t-elif="info.state === 'pending'">
+                    <h3 class="mb-1">Escaneá con ClubPay</h3>
+                    <img t-if="info.qr_image" t-att-src="info.qr_image" alt="QR de ClubPay"
+                         style="width: 300px; height: 300px; image-rendering: pixelated;"/>
+                    <div class="fs-2 fw-bold">Total <t t-out="info.amount_label"/></div>
+                    <div class="text-muted">Vence a las <t t-out="this.vence"/>. Esperando que el socio confirme en su teléfono…</div>
+                    <div t-if="info.error" class="text-danger small mt-1" t-out="info.error"/>
+                </t>
+
+                <t t-elif="info.state === 'applied'">
+                    <h3 class="text-success mb-2">Descuento confirmado</h3>
+                    <div class="fs-3 fw-bold" t-out="info.member_name"/>
+                    <div class="fs-5">Socio <t t-out="info.member_number"/><t t-if="info.club_name"> · <t t-out="info.club_name"/></t></div>
+                    <div class="alert alert-info w-100 mt-2 mb-2">Fijate que sea la persona que tenés delante.</div>
+                    <div t-if="info.offer_description" class="text-muted" t-out="info.offer_description"/>
+                    <div class="fs-2 fw-bold mt-1">Cupón <t t-out="info.discount_label"/></div>
+                    <div class="fs-5">A cobrar <t t-out="info.neto_label"/></div>
+                    <div t-if="info.recorte" class="small text-muted" t-out="info.recorte"/>
+                </t>
+
+                <t t-else="">
+                    <h3 class="mb-2" t-out="info.title"/>
+                    <div t-if="info.error" class="fs-5" t-out="info.error"/>
+                </t>
+            </div>
+            <t t-set-slot="footer">
+                <div class="d-flex justify-content-center w-100 gap-2 flex-wrap">
+                    <t t-if="this.props.info.state === 'pending'">
+                        <button class="btn btn-secondary btn-lg" t-on-click="() => this.props.print()">Imprimir QR</button>
+                        <button class="btn btn-light btn-lg" t-on-click="() => this.props.cancel()">Cancelar</button>
+                    </t>
+                    <t t-elif="this.props.info.state === 'applied'">
+                        <button class="btn btn-primary btn-lg" t-on-click="() => this.props.accept()">Aplicar cupón</button>
+                    </t>
+                    <t t-elif="this.props.info.state !== 'loading'">
+                        <button t-if="this.props.info.state === 'expired'" class="btn btn-primary btn-lg" t-on-click="() => this.props.retry()">Generar otro</button>
+                        <button class="btn btn-light btn-lg" t-on-click="() => this.props.cancel()">Volver sin descuento</button>
+                    </t>
+                </div>
+            </t>
+        </Dialog>
+    </t>
+</templates>
