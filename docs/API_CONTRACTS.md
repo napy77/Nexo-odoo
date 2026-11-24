@@ -123,3 +123,11 @@ Hecho por NexoPOS en el commit `cd15a2c`, todavía sin desplegar en nexopos.app 
   - Pasos: `recibido → aceptado → listo → (en_camino, solo reparto) → entregado`, y `cancelado` desde cualquiera antes de entregado. No se puede saltear `listo`.
   - El stock se descuenta al **aceptar** (movimiento `PEDIDO-<code>`) y vuelve al cancelar.
 - **Webhook al ERP:** PROPUESTO por NexoPOS, no hecho. Odoo consulta cada minuto.
+
+## ClubPay — cobro con QR (`/pos/charges`)
+Fuente: `clubapp/docs/nexopos-cobro-qr.md` del repo de ClubPay, el mismo contrato que usa NexoPOS. Base `https://api.clubpay.com.ar` (editable en Ajustes). Clave del comercio (`pos_…`) en `X-API-Key`. Importes en **centavos enteros**. **IMPLEMENTADO, probado solo con simulador.**
+- `POST /pos/charges {ticket_total_cents, external_reference}` → 201 `{charge_id, qr_payload, expires_at, status}`. Es idempotente por `external_reference`; Odoo manda `odoo-<base>-<pos|sale>-<uuid>`.
+- `GET /pos/charges/:id` → `status`, que puede ser `pending`, `applied`, `rejected`, `expired` o `cancelled`. Con `applied` vienen `member{name, member_number, club_name}`, `offer{description, discount_percent}`, `transaction_id`, `discount_cents`, `neto_cents` y `recorte` (`base`, `por_compra` o `mensual`).
+- `POST /pos/charges/:id/cancel` → `cancelled`, o 409 si ya estaba resuelto (Odoo vuelve a leerlo).
+- La clave se prueba con `GET /pos/charges/chg_prueba_de_odoo`: un 404 es clave válida.
+- No hay anulación de un descuento aplicado.

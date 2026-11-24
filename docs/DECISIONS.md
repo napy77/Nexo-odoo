@@ -123,3 +123,12 @@ Origen: brief de nexo-ecosystem (30/10/2026) y respuesta con las decisiones de G
 - No entran los pagados online o a la libreta: no se cobran en la caja.
 - Cancelado en NexoPOS → se cancela el borrador. Borrado por el cajero → no se repone en esa sesión. Cierre de caja → los borradores de tienda salen de la sesión y entran a la próxima.
 - Solo cuenta como cobrado en la caja una orden pagada (`paid`, `done`, `invoiced`), nunca el borrador.
+
+## DEC-023 — Descuento de ClubPay: cupón como forma de pago, QR a demanda (pedido de German, 23/11/2026)
+- **Clave en Odoo.** Odoo habla directo con ClubPay usando la clave `pos_…` del comercio, en `X-API-Key`. No pasa por NexoPOS. La pega el administrador en Ajustes y se guarda como token de `nexo_core`; nunca se muestra.
+- **ClubPay decide el descuento.** Odoo no calcula porcentajes ni topes.
+- **El descuento no achica la venta**, igual que en NexoPOS. Entra como forma de pago «Cupón ClubPay»: en la caja, una línea de pago; en Ventas, un pago parcial de la factura con el diario «Cupones ClubPay».
+- **Caja:** el QR sale al elegir la forma de pago, sin un paso de más. El servidor rechaza un cupón que no esté aplicado, que no coincida con el importe o que ya se haya usado.
+- **Ventas:** el QR no va en el mail porque vence a los 3 minutos. El cliente lo genera desde el portal cuando lo va a usar. Cada intento es un cobro nuevo, y uno nuevo cancela el pendiente.
+- **Sin anulación:** ClubPay no tiene cómo anular un descuento aplicado. Si el socio ya confirmó, el cupón se aplica aunque el cajero cancele. La caja no hace devoluciones con ClubPay.
+- **PENDIENTE DE VALIDAR con German:** cómo se concilia el diario «Cupones ClubPay» con lo que ClubPay le paga al comercio.

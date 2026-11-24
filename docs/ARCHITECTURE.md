@@ -30,6 +30,13 @@ nexo_tienda (depende de nexo_pos, sale_stock, pos_sale_stock)
   stock.move         lo que sale por un pedido de tienda no se manda a NexoPOS
   pos.order / stock.picking  cobrado o entregado en Odoo → «entregado» en NexoPOS
   cron               cada minuto: avisar entregas y traer pedidos
+
+nexo_clubpay (depende de nexo_core, point_of_sale, sale) — DEC-023
+  nexo.clubpay.charge  un cobro de ClubPay (QR), con socio, descuento y a qué venta quedó
+  pos.payment.method   terminal «clubpay»; pos.payment comprueba el cupón al recibir la venta
+  static/src/pos       PaymentClubPay + ventana del QR (como NexoPOS) + ticket del QR
+  sale.order / portal  botón «Descuento ClubPay» y QR a demanda en el portal
+  account.move._post   el cupón entra como pago parcial (diario «Cupones ClubPay»)
 ```
 
 ## Flujo
